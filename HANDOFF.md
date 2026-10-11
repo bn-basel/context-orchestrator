@@ -3,7 +3,7 @@
 Read this first when resuming work in a new session. Keep it current: update
 it at the end of every milestone, and before a session's context runs out.
 
-**Last updated:** 2026-10-11, phase 3b (trace analysis) done; next: small check of a 'trust the excerpts' instruction.
+**Last updated:** 2026-10-11, phase 3b done incl. the B2V check (no signal); next step open.
 
 ## Resume prompt
 
@@ -45,10 +45,15 @@ Phase 3b (benchmarks/README.md): in B2, 35% of the agent's read volume
 re-opens ranges the service already returned (mostly whole files), and
 package text is 39% of carried context. `ctxo analyze-traces` reproduces it.
 
+B2V check (benchmarks/README.md, "Phase 3b agent check"): telling the agent
+to rely on the excerpts did not reduce re-reads (31% vs 30%); no signal.
+
+**Noise matters for planning:** single runs vary about x1.7 in tokens (log SD
+0.50). Detecting a 50% saving needs ~18 runs, a 20% saving ~160. Use small
+checks only for large effects, and prefer low-noise behaviour measures from
+traces (`ctxo analyze-traces`: re-read share, service calls, reads per run).
+
 Candidate next steps:
-- **~10-run check of a 'trust the excerpts' variant**: B2 plus "excerpts are
-  verbatim with exact line ranges; open files only for parts not shown"
-  (optionally line-numbered excerpts). Compare with B2 on the same 5 tasks.
 - **Better follow-up answers** from the service (an agent asking about a
   named function gets it plus its tests and callers), then a ~10-run check.
 - Repository stays **private** until research, implementation and tests are
