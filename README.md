@@ -1,154 +1,110 @@
 # Context Orchestrator
 
-An experiment in giving coding agents **only the project context they need**,
-on demand and with sources, and **measuring** whether that is actually cheaper
-than letting them explore or handing them everything.
+Does a coding agent work more cheaply if it **asks for the project context it
+needs** instead of exploring the files itself, or being handed everything?
+This repository holds a small context service built to test that, the
+benchmark harness, and every raw result.
 
-It includes a small context service (SQLite, keyword and optional
-meaning-based search, exposed to agents as an MCP tool) and the benchmark
-harness used to test it with Claude Code. Results are summarised below and
-told in full in [docs/findings.md](docs/findings.md).
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/img/phase2-results-dark.svg">
+  <img alt="Cost and plan score of five context strategies relative to an agent exploring alone, from 300 Claude Code runs" src="docs/img/phase2-results-light.svg">
+</picture>
 
-## Results at a glance
+## What we tested
 
-300 Claude Code runs (Haiku 4.5) on a synthetic ~140k-token project, 20
-realistic tasks, plans graded against rubrics fixed before the runs. Each
-strategy is compared, per task, with the agent exploring files on its own:
+- **A synthetic project.** "Hallpass" is a fictional council booking system:
+  ~140k tokens of code, tests, SQL migrations, design decisions and known
+  bugs, with outdated and superseded documents deliberately mixed in.
+- **20 realistic tasks**, each with a grading rubric written before any run.
+- **Five ways of giving a coding agent context** (Claude Code, Haiku 4.5):
+  - the whole project in the prompt;
+  - letting the agent explore the files alone;
+  - our context service as a tool, merely offered;
+  - the same service, with the agent told to use it first;
+  - an "oracle" holding exactly the needed pieces.
+- **The main benchmark:** 300 runs (20 tasks × 5 strategies × 3), compared
+  per task with 95% confidence intervals.
+- **Smaller follow-up checks** (10 runs each): compact excerpts, "trust the
+  excerpts" instructions, and a sub-agent that does all the reading.
+- **Replays of the recordings** to see where the tokens actually go.
 
-| Strategy | Input tokens | Cost (API-equivalent) | Plan quality |
-|---|---|---|---|
-| **Context service, agent told to use it first** | **0.78×** | **0.79×** | no detectable difference |
-| Context service, merely offered | 0.90× (n.s.) | 0.93× | no detectable difference |
-| Whole project in the prompt | 5.1× | 2.0× | slightly higher (borderline) |
-| Oracle: exactly the needed pieces | 0.39× | 0.57× | slightly higher (borderline) |
+## What we found
 
-- **The service saves about a fifth of the cost**, but only when the agent is
-  told to use it. Offered, it was skipped in 18 of 60 runs.
-- **Full context is the expensive way to a small gain.** The whole project is
-  re-sent on every turn.
-- **Most input cost is old tool output re-sent on every turn.** Replaying the
-  recordings suggests that pruning it in place could cut input tokens by a
-  third to a half. That is untested so far; it needs an agent loop that can
-  edit its own context.
-- **Several ideas did not help:** compact excerpts, "trust the excerpts"
-  instructions, and a reader sub-agent (worse: 1.27× tokens, lower quality).
+- **The context service cut cost by about a fifth** (0.79×) with no
+  detectable change in plan quality, **but only when the agent was told to use
+  it.** Merely offered, it was skipped in 18 of 60 runs and the saving
+  disappeared into noise.
+- **Putting the whole project in the prompt doubled the cost** for, at most,
+  a small quality gain. The project is re-sent on every turn.
+- **Most of the input cost is old tool output** (files the agent read earlier)
+  being re-sent with every later step. Replaying the recordings suggests that
+  pruning it in place could cut input tokens by a third to a half. That is
+  untested so far.
+- **Better search scores didn't automatically mean cheaper agents.** Compact
+  excerpts pointed to more of the right places, but the agent then opened
+  those files itself, so cost stayed the same.
+- **A sub-agent doing all the reading was worse:** more tokens on every task,
+  lower quality. Each call starts from scratch, and its summaries lose detail.
+- **Single runs are noisy** (about ×1.7 in tokens). Small checks can only
+  detect large effects.
 
-**Limits:** one synthetic corpus, one small model, regex-graded plans and
-small samples. Costs are the CLI's API-list-price estimates, not subscription
-charges. Read [docs/findings.md](docs/findings.md) before quoting numbers.
+## What we think
 
-## What the service does
+- **Retrieval helps, but the bigger lever is what stays in the agent's
+  context.** The next experiment is editing the context in place (removing
+  stale tool output), the idea behind Meta's Context Language Models and the
+  Claude API's context editing. Summarising context instead loses the
+  details agents need.
+- **How the agent is told to use a tool matters as much as the tool.**
+- **The service was designed for memory across tasks**: agents saving
+  verified findings so the next task starts ahead. A single-task benchmark
+  cannot show that; it is the obvious next benchmark.
+- **The evidence is narrow:** one synthetic project, one small model,
+  rubric-graded plans rather than executed code, and API-equivalent costs
+  (the CLI's list-price estimates, not subscription charges). Treat the
+  numbers as a careful first measurement.
 
-Agents send a **typed request** (the task, the kinds of knowledge wanted, a
-token budget) and get back a **context package**:
+The full write-up is in [docs/findings.md](docs/findings.md); every run with
+its caveats is in [benchmarks/README.md](benchmarks/README.md).
 
-- **Verbatim excerpts** with file paths, line ranges and file hashes, so every
-  item can be checked and detected as stale.
-- **Trust labels:** `verified`, `observed` (read from source), `unverified`,
-  `assumption`. `superseded` decisions are withheld unless asked for.
-- **Honest gaps:** requested kinds with nothing relevant are listed as
-  unresolved, never filled in.
-- **Telemetry:** one event per request; every number says whether it was
-  measured, estimated or unavailable. Task text is excluded by default.
+## Try it
 
-```
-project files ──ingest──▶ memory (SQLite + FTS5 [+ vectors]) ◀── retrieval (BM25 / hybrid, follow-up hop)
-agent ──request_context (MCP) / CLI / Python──▶ orchestrator ──▶ context package ──▶ agent
-                                                     └──▶ telemetry (JSONL)
-```
-
-Design decisions and trade-offs: [docs/architecture.md](docs/architecture.md).
-
-## Install
-
-Python 3.11+. The core has **no runtime dependencies** (standard library
-`sqlite3` with FTS5). Meaning-based search is optional and uses a local
-[Ollama](https://ollama.com) with `nomic-embed-text`; nothing leaves the
-machine.
+Python 3.11+, no runtime dependencies. Optional meaning-based search uses a
+local [Ollama](https://ollama.com) with `nomic-embed-text`.
 
 ```bash
 git clone https://github.com/bn-basel/context-orchestrator.git
 cd context-orchestrator
 uv sync
+uv run ctxo ingest examples/sample_project
+uv run ctxo request examples/sample_project --task "Why are fines capped?" --kind decision --kind code --format markdown
 ```
 
-## Use it
-
-```bash
-uv run ctxo ingest path/to/project
-uv run ctxo request path/to/project --task "Why are refunds wrong after a closure?" --kind decision --kind known_issue --kind code --format markdown
-```
-
-As a tool for Claude Code (or any MCP host), add an MCP config such as:
+To use it from Claude Code, run it as an MCP tool:
 
 ```json
 {"mcpServers": {"ctxo": {"command": "uv", "args": ["run", "--directory", "path/to/context-orchestrator", "ctxo", "mcp", "path/to/project"]}}}
 ```
 
-Useful options: `--retrieval hybrid` (needs Ollama), `--hops 2` (search again
-for what the first results name), `--detail compact`, `--max-tokens N`.
+Every answer contains verbatim excerpts with file paths and line ranges,
+trust labels (verified, observed, assumption), and a list of what it could
+not find.
 
-From Python:
-
-```python
-from context_orchestrator import ContextService, ContextRequest, InfoKind
-
-with ContextService("examples/sample_project") as svc:
-    svc.ingest()
-    package = svc.request(
-        ContextRequest(
-            task="Cap overdue fines at the book's replacement cost",
-            kinds=[InfoKind.DECISION, InfoKind.CONSTRAINT, InfoKind.CODE],
-        )
-    )
-    print(package.render_markdown())
-```
-
-Markdown front matter (`kind:`, `status:`) lets a project label its own
-documents; otherwise kinds are inferred from paths (`decisions/` → decision,
-`*.sql` → schema, `tests/` → test, …).
-
-## Reproduce the experiments
-
-Everything runs from committed task suites and writes raw results to
-`benchmarks/results/<run>/`. Retrieval evaluations make no model calls.
-Agent runs call `claude -p` and **use real Claude usage**: start small.
+## Reproduce
 
 ```bash
 uv run pytest
-uv run ctxo eval-retrieval benchmarks/tasks/hallpass.json --gate benchmarks/gate1.json
-uv run ctxo eval-agent benchmarks/tasks/hallpass.json --rubrics benchmarks/tasks/hallpass.rubrics.json --tasks H01,H06 --strategies B2,C --reps 1
+uv run ctxo eval-retrieval benchmarks/tasks/hallpass.json
+uv run ctxo eval-agent benchmarks/tasks/hallpass.json --rubrics benchmarks/tasks/hallpass.rubrics.json --tasks H01 --strategies B2,C
 uv run ctxo analyze-agent benchmarks/results/<run>
-uv run ctxo analyze-traces benchmarks/results/<run> --suite benchmarks/tasks/hallpass.json
-uv run ctxo what-if benchmarks/results/<run> --suite benchmarks/tasks/hallpass.json
+uv run python benchmarks/charts/phase2_chart.py benchmarks/results/20261011T032628Z-hallpass-agent
 ```
 
-The method is in [docs/benchmark-methodology.md](docs/benchmark-methodology.md),
-and every run with its numbers and caveats is in
-[benchmarks/README.md](benchmarks/README.md).
-
-## Repository layout
-
-```
-src/context_orchestrator/
-  memory/            file discovery, structure-aware chunking, SQLite store
-  retrieval/         BM25, hybrid (embeddings + rank fusion), follow-up hops, references
-  orchestrator/      request → package (budget, trust labels, staleness, gaps)
-  agent_interface/   Python API, `ctxo` CLI, MCP server
-  telemetry/         JSONL events with metric provenance
-  evaluation/        retrieval scoring, agent runner, paired analysis, trace analysis, what-if replay
-benchmarks/          corpus (synthetic "Hallpass" project), tasks, rubrics, raw results
-examples/            a small sample project
-docs/                findings, architecture, benchmark methodology
-tests/               unit and end-to-end tests (no model calls)
-```
-
-## Status
-
-Research code: tested, but young. See [ROADMAP.md](ROADMAP.md) for what is
-done and what is open, and [docs/findings.md](docs/findings.md) for what to
-try next.
+`eval-retrieval` makes no model calls. `eval-agent` runs Claude Code and uses
+real usage, so start small. Method:
+[docs/benchmark-methodology.md](docs/benchmark-methodology.md). Design:
+[docs/architecture.md](docs/architecture.md). Plans: [ROADMAP.md](ROADMAP.md).
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE). Built by bn-basel with Claude (Anthropic) as co-author.
