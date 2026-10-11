@@ -86,3 +86,12 @@ def test_chunk_by_source(svc: ContextService) -> None:
     assert svc.store.chunk_by_source(chunk.source) == chunk
     missing = SourceRef("nope.md", 1, 2, "0" * 64, "x")
     assert svc.store.chunk_by_source(missing) is None
+
+
+def test_references_are_not_followed_from_code(svc: ContextService) -> None:
+    # ledger.py's chunks call nothing followable, but other.py's class is code too: code
+    # items never pull in further code, only documents do.
+    package = svc.request(
+        ContextRequest(task="accumulate lines run_all", kinds=[InfoKind.CODE], max_references=4)
+    )
+    assert package.items and not any(i.via for i in package.items)

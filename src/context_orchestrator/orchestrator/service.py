@@ -25,6 +25,7 @@ from context_orchestrator.models import (
     ContextItem,
     ContextPackage,
     ContextRequest,
+    InfoKind,
     Metric,
     OmittedItem,
     SourceRef,
@@ -43,6 +44,8 @@ from context_orchestrator.telemetry.events import (
 from context_orchestrator.tokens import ESTIMATE_METHOD, estimate_tokens
 
 log = logging.getLogger(__name__)
+
+_CODE_KINDS = (InfoKind.CODE, InfoKind.TEST)
 
 
 class ContextOrchestrator:
@@ -150,7 +153,9 @@ class ContextOrchestrator:
                     continue
                 # 3. Follow references from this item right away, so the code a bug report
                 #    or ADR names outranks lower-ranked search hits for the budget.
-                if references_added >= request.max_references:
+                #    Only documents are followed: a doc naming a function points at it on
+                #    purpose, while code calling a helper mostly adds noise.
+                if references_added >= request.max_references or hit.chunk.kind in _CODE_KINDS:
                     continue
                 for ref in self.references.references_in(hit.chunk):
                     if references_added >= request.max_references:
