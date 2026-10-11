@@ -334,3 +334,21 @@ transparent, but blind to some paraphrases and lenient on some checks);
 so a single borderline interval (e.g. B2 vs A on score) may be chance. The
 model may also have prior knowledge of common patterns, though not of this
 fictional project.
+
+## Phase 3a: compact packages (retrieval only, no model calls)
+
+Idea: items show only their opening lines (code: signature and docstring;
+docs: first lines of the section) plus the exact location, so a package can
+point at more of the right places; the agent reads the rest with its file
+tools. Measured with `--detail compact` on the same tasks (Ollama for hybrid):
+
+| Suite, retrieval (2 hops) | Full text, 3 per kind | Compact, 3 per kind | Compact, 8 per kind |
+|---|---|---|---|
+| Hallpass, hybrid | 0.61 recall / 0.32 precision, ~3.1k tokens | 0.61 / 0.31, **~1.3k tokens** | **0.74** / 0.15, ~3.1k tokens |
+| Hallpass, BM25 | 0.55 / 0.30, ~3.0k | | 0.70 / 0.14, ~3.1k |
+| Sample, hybrid | 0.94 / 0.41, ~0.6k | | 1.00 / 0.20, ~1.3k |
+
+At the same size, compact packages reach 0.74 recall instead of 0.61; or the
+same recall with 60% fewer tokens. Caveat: recall here means the package
+*points at* the needed range and shows its opening, not its full text.
+Whether that helps an agent needs an agent check (planned small: ~10 runs).
