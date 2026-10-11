@@ -25,6 +25,7 @@ from context_orchestrator.models import Chunk, InfoKind
 _DEFINITION = re.compile(r"^[ \t]*(?:async[ \t]+)?(?:def|class)[ \t]+([A-Za-z_]\w*)", re.MULTILINE)
 _CALL = re.compile(r"\b([A-Za-z_]\w*)[ \t]*\(")
 _DOTTED = re.compile(r"\b([A-Za-z_]\w*)\.([A-Za-z_]\w*)\b")
+_CHAIN = re.compile(r"\b[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+")
 _BACKTICKED = re.compile(r"`([A-Za-z_]\w*)(?:\(\))?`")
 
 MIN_NAME_LENGTH = 5
@@ -87,3 +88,33 @@ class ReferenceIndex:
             ).fetchone()
             found.append(Reference(name, self.store.row_to_chunk(row)))
         return found
+
+    def definition_count(self, name: str) -> int:
+        return len(self._definitions().get(name, []))
+
+    def table_names(self) -> set[str]:
+        """Table names from ``CREATE TABLE`` chunk headings (schema files)."""
+        rows = self.store.conn.execute(
+            "SELECT heading FROM chunks WHERE kind = ? AND heading LIKE '%CREATE TABLE%'",
+            (InfoKind.SCHEMA.value,),
+        )
+        names = set()
+        for row in rows:
+            words = row["heading"].split("::", 1)[-1].replace("(", " ").split()
+            if words:
+                names.add(words[-1].strip('"').lower())
+        return names
+
+
+def mentioned_names(text: str) -> list[str]:
+    """Identifiers a text calls, dots into or backticks, in order of first mention."""
+    mentions: list[tuple[int, str]] = []
+    mentions += [(m.start(), m.group(1)) for m in _CALL.finditer(text)]
+    mentions += [(m.start(), m.group(1)) for m in _BACKTICKED.finditer(text)]
+    for m in _CHAIN.finditer(text):  # core.tz.to_utc -> tz, to_utc
+        offset = m.start()
+        for part in m.group(0).split(".")[1:]:
+            offset = text.index(part, offset)
+            mentions.append((offset, part))
+    mentions += [(m.start(), m.group(1)) for m in _DEFINITION.finditer(text)]
+    return list(dict.fromkeys(name for _, name in sorted(mentions)))

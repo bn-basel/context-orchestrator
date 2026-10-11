@@ -57,6 +57,7 @@ class ScoredChunk:
     score: float  # negated BM25 (or fused rank score in hybrid mode): higher is better
     matched_terms: tuple[str, ...]
     similarity: float | None = None  # cosine similarity to the query, if vectors were used
+    via: str | None = None  # set when the hit came from a follow-up search, not the task
 
 
 class LexicalRetriever:

@@ -15,6 +15,7 @@ from pathlib import Path
 
 from context_orchestrator.agent_interface.api import RETRIEVAL_MODES, ContextService
 from context_orchestrator.models import (
+    DEFAULT_HOPS,
     DEFAULT_MAX_REFERENCES,
     DEFAULT_MIN_RELATIVE_SCORE,
     ContextRequest,
@@ -69,6 +70,7 @@ def _build_parser() -> argparse.ArgumentParser:
     req.add_argument("--per-kind-limit", type=int, default=3)
     req.add_argument("--min-relative-score", type=float, default=DEFAULT_MIN_RELATIVE_SCORE)
     req.add_argument("--max-references", type=int, default=DEFAULT_MAX_REFERENCES)
+    req.add_argument("--hops", type=int, choices=[1, 2], default=DEFAULT_HOPS)
     req.add_argument("--agent-id", default="cli")
     req.add_argument("--request-file", type=Path, help="read the request from a JSON file")
     req.add_argument("--format", choices=["json", "markdown"], default="json")
@@ -91,6 +93,7 @@ def _build_parser() -> argparse.ArgumentParser:
     ev.add_argument("--per-kind-limit", type=int, default=3)
     ev.add_argument("--min-relative-score", type=float, default=DEFAULT_MIN_RELATIVE_SCORE)
     ev.add_argument("--max-references", type=int, default=DEFAULT_MAX_REFERENCES)
+    ev.add_argument("--hops", type=int, choices=[1, 2], default=DEFAULT_HOPS)
     retrieval_options(ev)
     return parser
 
@@ -118,6 +121,7 @@ def _eval_retrieval(args: argparse.Namespace) -> int:
             args.per_kind_limit,
             args.min_relative_score,
             args.max_references,
+            args.hops,
             args.retrieval,
             args.embed_model if args.retrieval != "bm25" else None,
         ),
@@ -184,6 +188,7 @@ def main(argv: list[str] | None = None) -> int:
                 "per_kind_limit": args.per_kind_limit,
                 "min_relative_score": args.min_relative_score,
                 "max_references": args.max_references,
+                "hops": args.hops,
                 "agent_id": args.agent_id,
             }
         else:

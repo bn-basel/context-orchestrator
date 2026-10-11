@@ -14,6 +14,7 @@ from typing import Any
 
 DEFAULT_MIN_RELATIVE_SCORE = 0.0
 DEFAULT_MAX_REFERENCES = 0
+DEFAULT_HOPS = 1
 
 
 class InfoKind(StrEnum):
@@ -117,6 +118,9 @@ class ContextRequest:
     # After search, add up to this many code/test chunks that define functions or classes
     # named in the selected items (budget permitting, requested kinds only). 0 disables.
     max_references: int = DEFAULT_MAX_REFERENCES
+    # 2 = search again for the functions, classes and tables the top results name, and
+    # fuse both rankings (see retrieval.multihop). 1 = a single search.
+    hops: int = DEFAULT_HOPS
     include_superseded: bool = False
     request_id: str = field(default_factory=lambda: uuid.uuid4().hex)
 

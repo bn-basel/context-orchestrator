@@ -34,6 +34,7 @@ from context_orchestrator.models import (
     render_item,
     render_unresolved,
 )
+from context_orchestrator.retrieval import multihop
 from context_orchestrator.retrieval.lexical import LexicalRetriever, ScoredChunk, extract_terms
 from context_orchestrator.retrieval.references import ReferenceIndex
 from context_orchestrator.telemetry.events import (
@@ -76,12 +77,15 @@ class ContextOrchestrator:
         # 1. Retrieve per kind. Over-fetch so superseded items do not use up slots.
         kinds = request.kinds or [None]
         query_text = " ".join([request.task, *request.constraints])
+        depth = request.per_kind_limit * 2
+        first_depth = max(depth, multihop.CANDIDATES) if request.hops >= 2 else depth
         hits_by_kind = [
-            self.retriever.search(
-                terms, kind, limit=request.per_kind_limit * 2, query_text=query_text
-            )
+            self.retriever.search(terms, kind, limit=first_depth, query_text=query_text)
             for kind in kinds
         ]
+        if request.hops >= 2 and terms:
+            hits_by_kind = self._follow_up(hits_by_kind, kinds, first_depth)
+        hits_by_kind = [hits[:depth] for hits in hits_by_kind]
         candidates_seen = sum(len(h) for h in hits_by_kind)
         # BM25 scores from one query are comparable across kinds (IDF is index-wide), so a
         # kind whose best hit is far below the query's best hit has nothing really relevant.
@@ -208,6 +212,24 @@ class ContextOrchestrator:
 
     # -- helpers ------------------------------------------------------------
 
+    def _follow_up(
+        self, hits_by_kind: list[list[ScoredChunk]], kinds: list, depth: int
+    ) -> list[list[ScoredChunk]]:
+        everything = sorted((h for hits in hits_by_kind for h in hits), key=lambda h: -h.score)
+        seeds = list({h.chunk.chunk_id: h.chunk for h in everything}.values())[
+            : multihop.SEED_COUNT
+        ]
+        names = multihop.expansion_names(seeds, self.references)
+        if not names:
+            return hits_by_kind
+        phrases = [multihop.as_phrase(n) for n in names]
+        return [
+            multihop.fuse(
+                hits, LexicalRetriever.search(self.retriever, phrases, kind, depth), names
+            )
+            for hits, kind in zip(hits_by_kind, kinds, strict=True)
+        ]
+
     def _to_item(
         self, hit: ScoredChunk, fingerprints: dict[str, str | None], via: str | None = None
     ) -> ContextItem:
@@ -222,7 +244,7 @@ class ContextOrchestrator:
             matched_terms=hit.matched_terms,
             stale=self._is_stale(chunk.source, fingerprints),
             estimated_tokens=0,
-            via=via,
+            via=via or hit.via,
             similarity=hit.similarity,
         )
         return replace(item, estimated_tokens=estimate_tokens(render_item(item)))
