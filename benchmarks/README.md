@@ -122,3 +122,40 @@ What this says:
 Threats: one model family wrote the corpus, tasks and labels (though as
 separate agents with separate inputs); 20 tasks is a small sample; labels
 reflect one reader's judgement of "needed".
+
+## Phase 1c log: improving keyword retrieval (dev set = the 20 Hallpass tasks)
+
+Each change was committed, then measured on both suites from a clean tree.
+"Hallpass" numbers are at the default budget (4000 tokens, 3 per kind).
+
+| Step | Change | Hallpass recall / precision | Sample recall | Kept? |
+|---|---|---|---|---|
+| baseline | (run `…013257Z`) | 0.56 / 0.28 | 0.83 | |
+| 1 | Budget covers the rendered package (bug fix) | 0.56 / 0.29 | 0.83 | yes: packages can no longer exceed `max_tokens` |
+| 2 | Weak-match filter, `min_relative_score` 0.1–0.5 | 0.56→0.48 / 0.29→0.47 | 0.74→0.45 | off by default |
+| 3 | Standard NLTK stopwords | 0.56 / 0.29 | 0.81 | yes (sample only lost T07's lucky "after" match) |
+| 4 | Reference following, `max_references` 2–8 (docs only) | 0.56–0.57 / 0.26–0.27 | 0.81 | off by default |
+| — | Coordination-factor reranking (exploratory, scratch only, not committed) | 0.47–0.52 | 0.81 | rejected |
+
+What the steps showed:
+
+- **The weak-match filter is a precision dial, not a "nothing exists"
+  detector.** Irrelevant matches of the requested kind can score as high as
+  relevant ones: a request for an "investigation" matches every finding,
+  since every finding is an investigation. Detecting missing information
+  needs meaning, not word overlap.
+- **Reference following works mechanically but is zero-sum at a fixed
+  budget.** On H01 it pulls in exactly the two functions the bug report names
+  (both previously missed), but each reference displaces another needed item.
+  First version: only 10 of 78 added references were relevant (code-to-code
+  calls are noise); restricting it to documents helped precision, not recall.
+- **Keyword tweaks have stalled at ~0.56 recall.** The remaining loss is
+  ranking quality: relevant chunks are in the candidate pool (recall 0.85 at
+  a 32k-token package) but BM25 doesn't put them near the top.
+- **The gate has a loophole worth noting:** a huge budget (~32k tokens, 23% of
+  the corpus) reaches recall 0.85, passing C1 and C5. That isn't a fix, it's
+  handing over a quarter of the haystack; C5's 50% ceiling is too lax for a
+  corpus this size. The criteria stay as committed. Phase 2 will price
+  package size directly.
+
+Next: meaning-based (semantic) ranking, combined with BM25.
