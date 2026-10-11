@@ -66,6 +66,14 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="serve the existing knowledge base without refreshing it",
     )
+    mcp.add_argument(
+        "--memory-write",
+        action="store_true",
+        help="also offer record_finding, so agents can save anchored findings (state dir only)",
+    )
+
+    fnd = sub.add_parser("findings", help="list findings agents have recorded, for review")
+    common(fnd)
 
     ingest = sub.add_parser("ingest", help="load or refresh the project knowledge base")
     common(ingest)
@@ -278,8 +286,19 @@ def main(argv: list[str] | None = None) -> int:
                 if not args.skip_ingest:
                     svc.ingest()
                 logging.getLogger(__name__).info("mcp: %d chunks ready", svc.store.count_chunks())
-                config = ServerConfig(args.max_tokens, args.per_kind_limit, args.hops, args.detail)
+                config = ServerConfig(
+                    args.max_tokens, args.per_kind_limit, args.hops, args.detail, args.memory_write
+                )
                 run_stdio(McpServer(svc, config))
+            return 0
+
+        if args.command == "findings":
+            with ContextService.without_telemetry(args.project, args.state_dir) as svc:
+                findings = list(svc.store.iter_findings())
+                for f in findings:
+                    print(f"## {f.finding_id}  {f.source.label()}  [{f.review}, {f.agent_id}, "
+                          f"{f.source.ingested_at}]\n{f.claim}\n> {f.evidence}\n")  # fmt: skip
+                print(f"{len(findings)} finding(s)")
             return 0
 
         if args.command == "ingest":

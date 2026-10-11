@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 import sqlite3
 from collections.abc import Iterator
 from dataclasses import dataclass, field
@@ -19,7 +20,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from context_orchestrator.memory.loader import discover_files, load_file
-from context_orchestrator.models import Chunk, InfoKind, SourceRef, Status
+from context_orchestrator.models import Chunk, Finding, InfoKind, SourceRef, Status
 
 log = logging.getLogger(__name__)
 
@@ -60,6 +61,24 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
     chunk_id UNINDEXED, heading, text, path,
     tokenize = 'porter unicode61'
 );
+-- Findings recorded by agents. Not tied to documents: they survive re-ingestion, and the
+-- file hash at recording time shows when the cited source has changed since.
+CREATE TABLE IF NOT EXISTS findings (
+    finding_id  TEXT PRIMARY KEY,
+    claim       TEXT NOT NULL,
+    path        TEXT NOT NULL,
+    line_start  INTEGER NOT NULL,
+    line_end    INTEGER NOT NULL,
+    evidence    TEXT NOT NULL,
+    file_sha256 TEXT NOT NULL,
+    agent_id    TEXT NOT NULL,
+    created_at  TEXT NOT NULL,
+    review      TEXT NOT NULL DEFAULT 'unreviewed'
+);
+CREATE VIRTUAL TABLE IF NOT EXISTS findings_fts USING fts5(
+    finding_id UNINDEXED, claim, evidence, path,
+    tokenize = 'porter unicode61'
+);
 """
 
 
@@ -72,6 +91,11 @@ class IngestReport:
     skipped: list[str] = field(default_factory=list)
     chunks_written: int = 0
     chunks_embedded: int = 0
+
+
+# Delimiters FTS5 highlight() puts around matched terms (control characters never in text).
+_MARKS = ("\x02", "\x03")
+_MARKED = re.compile("\x02(.*?)\x03")
 
 
 def _now() -> str:
@@ -226,3 +250,74 @@ class MemoryStore:
 
     def count_chunks(self) -> int:
         return int(self.conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0])
+
+    # -- findings ---------------------------------------------------------
+
+    def add_finding(self, finding: Finding) -> None:
+        with self.conn:
+            self.conn.execute(
+                "INSERT INTO findings VALUES (?,?,?,?,?,?,?,?,?,?)",
+                (
+                    finding.finding_id,
+                    finding.claim,
+                    finding.source.path,
+                    finding.source.line_start,
+                    finding.source.line_end,
+                    finding.evidence,
+                    finding.source.file_sha256,
+                    finding.agent_id,
+                    finding.source.ingested_at,
+                    finding.review,
+                ),
+            )
+            self.conn.execute(
+                "INSERT INTO findings_fts(finding_id, claim, evidence, path) VALUES (?,?,?,?)",
+                (finding.finding_id, finding.claim, finding.evidence, finding.source.path),
+            )
+
+    def _row_to_finding(self, row: sqlite3.Row) -> Finding:
+        return Finding(
+            finding_id=row["finding_id"],
+            claim=row["claim"],
+            evidence=row["evidence"],
+            source=SourceRef(
+                row["path"],
+                row["line_start"],
+                row["line_end"],
+                row["file_sha256"],
+                row["created_at"],
+            ),
+            agent_id=row["agent_id"],
+            review=row["review"],
+        )
+
+    def search_findings(
+        self, terms: list[str], limit: int = 3
+    ) -> list[tuple[Finding, tuple[str, ...]]]:
+        """Findings matching the terms, best first, with the terms each one matched."""
+        if not terms:
+            return []
+        match = " OR ".join(f'"{t}"' for t in terms)
+        rows = self.conn.execute(
+            """
+            SELECT f.*, bm25(findings_fts, 0.0, 2.0, 1.0, 0.5) AS rank,
+                   highlight(findings_fts, 1, ?, ?) AS hl_claim,
+                   highlight(findings_fts, 2, ?, ?) AS hl_evidence
+            FROM findings_fts JOIN findings f ON f.finding_id = findings_fts.finding_id
+            WHERE findings_fts MATCH ?
+            ORDER BY rank, f.created_at LIMIT ?
+            """,
+            (*_MARKS, *_MARKS, match, limit),
+        )
+        out = []
+        for row in rows:
+            marked = _MARKED.findall(row["hl_claim"] + row["hl_evidence"])
+            out.append((self._row_to_finding(row), tuple(dict.fromkeys(m.lower() for m in marked))))
+        return out
+
+    def iter_findings(self) -> Iterator[Finding]:
+        for row in self.conn.execute("SELECT * FROM findings ORDER BY created_at, finding_id"):
+            yield self._row_to_finding(row)
+
+    def count_findings(self) -> int:
+        return int(self.conn.execute("SELECT COUNT(*) FROM findings").fetchone()[0])

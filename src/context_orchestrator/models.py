@@ -16,6 +16,7 @@ DEFAULT_MIN_RELATIVE_SCORE = 0.0
 DEFAULT_MAX_REFERENCES = 0
 DEFAULT_HOPS = 1
 DEFAULT_DETAIL = "full"
+DEFAULT_MAX_FINDINGS = 3
 DETAIL_LEVELS = ("full", "compact")
 
 
@@ -104,6 +105,26 @@ class Chunk:
     metadata: dict[str, str] = field(default_factory=dict)
 
 
+@dataclass(frozen=True, slots=True)
+class Finding:
+    """Something an agent learned about the project, anchored to the lines that show it.
+
+    ``evidence`` is a verbatim quote from the cited lines, checked when the
+    finding is recorded, so a finding cannot cite lines that do not say it.
+    ``source.file_sha256`` is the file's hash at that moment: if the file has
+    changed since, the finding is reported as stale. ``source.ingested_at``
+    holds the recording time. ``review`` stays "unreviewed" until a person
+    confirms it; until then the claim is labelled unverified.
+    """
+
+    finding_id: str
+    claim: str
+    evidence: str
+    source: SourceRef
+    agent_id: str
+    review: str = "unreviewed"
+
+
 @dataclass(slots=True)
 class ContextRequest:
     """What an agent asks the context service for."""
@@ -128,6 +149,9 @@ class ContextRequest:
     # rest from the file. "full": the whole chunk.
     detail: str = DEFAULT_DETAIL
     include_superseded: bool = False
+    # Findings recorded by earlier agents (anchored, unreviewed) placed before search
+    # results. 0 disables them.
+    max_findings: int = DEFAULT_MAX_FINDINGS
     request_id: str = field(default_factory=lambda: uuid.uuid4().hex)
 
     @classmethod
@@ -204,7 +228,8 @@ def render_header(task: str) -> str:
 def render_item(item: ContextItem) -> str:
     flags = [item.kind.value, item.status.value]
     if item.stale:
-        flags.append("STALE: file changed since ingestion")
+        since = "it was recorded" if item.kind is InfoKind.FINDING else "ingestion"
+        flags.append(f"STALE: file changed since {since}")
     if item.via:
         flags.append(item.via)
     more = ""

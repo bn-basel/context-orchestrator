@@ -7,12 +7,16 @@ is written to.
 
 from __future__ import annotations
 
+import hashlib
+import re
 from collections.abc import Sequence
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
 
+from context_orchestrator.memory.loader import sha256_bytes
 from context_orchestrator.memory.store import IngestReport, MemoryStore
-from context_orchestrator.models import ContextPackage, ContextRequest
+from context_orchestrator.models import ContextPackage, ContextRequest, Finding, SourceRef
 from context_orchestrator.orchestrator.service import ContextOrchestrator
 from context_orchestrator.telemetry.events import JsonlTelemetry, NullTelemetry, TelemetrySink
 
@@ -20,6 +24,13 @@ STATE_DIR_NAME = ".ctxo"
 DB_NAME = "memory.db"
 TELEMETRY_NAME = "telemetry.jsonl"
 RETRIEVAL_MODES = ("bm25", "hybrid", "semantic")
+MIN_CLAIM_CHARS, MAX_CLAIM_CHARS = 20, 800
+MAX_EVIDENCE_CHARS = 400
+MAX_FINDING_LINES = 60
+
+
+def _squash(text: str) -> str:
+    return re.sub(r"\s+", " ", text).strip()
 
 
 class Embedder(Protocol):
@@ -88,6 +99,58 @@ class ContextService:
             raise RuntimeError("The knowledge base is empty. Run ingest first.")
         self._ensure_retriever()
         return self.orchestrator.handle(request)
+
+    def record_finding(
+        self,
+        claim: str,
+        path: str,
+        line_start: int,
+        line_end: int,
+        evidence: str,
+        agent_id: str = "anonymous",
+    ) -> Finding:
+        """Store something an agent worked out, after checking its anchor.
+
+        The cited lines must exist and contain ``evidence`` verbatim (whitespace
+        is normalised), so a finding cannot point at lines that do not say it.
+        The finding is stored unreviewed in the state directory; the project's
+        files are never written. Raises ValueError with a readable reason.
+        """
+        claim, evidence = claim.strip(), evidence.strip()
+        if not MIN_CLAIM_CHARS <= len(claim) <= MAX_CLAIM_CHARS:
+            raise ValueError(f"claim must be {MIN_CLAIM_CHARS}-{MAX_CLAIM_CHARS} characters")
+        if not evidence or len(evidence) > MAX_EVIDENCE_CHARS:
+            raise ValueError(f"evidence must be 1-{MAX_EVIDENCE_CHARS} characters")
+        rel = path.replace("\\", "/").removeprefix("./")
+        file = (self.project_root / rel).resolve()
+        rel = (
+            file.relative_to(self.project_root).as_posix()
+            if file.is_relative_to(self.project_root)
+            else rel
+        )
+        if not file.is_relative_to(self.project_root) or not file.is_file():
+            raise ValueError(f"no such file in the project: {path}")
+        data = file.read_bytes()
+        lines = data.decode("utf-8", "replace").splitlines()
+        if not 1 <= line_start <= line_end <= len(lines):
+            raise ValueError(f"{rel} has {len(lines)} lines; cited {line_start}-{line_end}")
+        if line_end - line_start + 1 > MAX_FINDING_LINES:
+            raise ValueError(f"cite at most {MAX_FINDING_LINES} lines")
+        cited = _squash("\n".join(lines[line_start - 1 : line_end]))
+        if _squash(evidence) not in cited:
+            raise ValueError(f"evidence is not a verbatim quote from {rel}:{line_start}-{line_end}")
+        recorded_at = datetime.now(UTC).isoformat(timespec="seconds")
+        finding = Finding(
+            finding_id=hashlib.sha256(
+                f"{rel}:{line_start}:{line_end}:{claim}:{recorded_at}".encode()
+            ).hexdigest()[:16],
+            claim=claim,
+            evidence=evidence,
+            source=SourceRef(rel, line_start, line_end, sha256_bytes(data), recorded_at),
+            agent_id=agent_id,
+        )
+        self.store.add_finding(finding)
+        return finding
 
     def close(self) -> None:
         self.store.close()

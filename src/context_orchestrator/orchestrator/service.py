@@ -25,6 +25,7 @@ from context_orchestrator.models import (
     ContextItem,
     ContextPackage,
     ContextRequest,
+    Finding,
     InfoKind,
     Metric,
     OmittedItem,
@@ -50,6 +51,8 @@ _CODE_KINDS = (InfoKind.CODE, InfoKind.TEST)
 # Lines shown per item in compact mode: enough for a signature and docstring, a table's
 # first columns, or a section's opening sentences.
 COMPACT_LINES = {InfoKind.CODE: 5, InfoKind.TEST: 4, InfoKind.SCHEMA: 8}
+# A finding must share at least this many search terms with the request to be shown.
+MIN_FINDING_TERMS = 2
 
 
 class ContextOrchestrator:
@@ -154,6 +157,19 @@ class ContextOrchestrator:
             used_tokens += item.estimated_tokens
             items.append(item)
             return True
+
+        # Findings recorded by earlier agents go first: each is a short summary of something
+        # already worked out, anchored to the lines that show it.
+        if request.max_findings and terms:
+            added = 0
+            for finding, matched in self.store.search_findings(terms, request.max_findings * 3):
+                if added >= request.max_findings:
+                    break
+                if len(matched) < MIN_FINDING_TERMS:
+                    continue
+                item = self._finding_item(finding, matched, fingerprints)
+                if try_add(item, f"finding:{finding.finding_id}"):
+                    added += 1
 
         for rank in range(max((len(r) for r in ranked_by_kind), default=0)):
             round_hits = [r[rank] for r in ranked_by_kind if rank < len(r)]
@@ -267,6 +283,26 @@ class ContextOrchestrator:
             estimated_tokens=0,
             via=via or hit.via,
             similarity=hit.similarity,
+        )
+        return replace(item, estimated_tokens=estimate_tokens(render_item(item)))
+
+    def _finding_item(
+        self, finding: Finding, matched: tuple[str, ...], fingerprints: dict[str, str | None]
+    ) -> ContextItem:
+        first_line = finding.claim.strip().split("\n")[0]
+        heading = "Finding: " + (first_line[:77] + "..." if len(first_line) > 80 else first_line)
+        evidence = "\n".join(f"> {line}" for line in finding.evidence.strip().split("\n"))
+        item = ContextItem(
+            kind=InfoKind.FINDING,
+            status=Status.VERIFIED if finding.review == "confirmed" else Status.UNVERIFIED,
+            heading=heading,
+            text=f"{finding.claim.strip()}\n\nEvidence quoted from the cited lines:\n{evidence}",
+            source=finding.source,
+            score=0.0,
+            matched_terms=matched,
+            stale=self._is_stale(finding.source, fingerprints),
+            estimated_tokens=0,
+            via=f"recorded by agent {finding.agent_id}, {finding.review}",
         )
         return replace(item, estimated_tokens=estimate_tokens(render_item(item)))
 
