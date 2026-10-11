@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "run_id": "20261011T025330Z-sample_project",
+  "started_at": "2026-10-11T02:53:30+00:00",
+  "finished_at": "2026-10-11T02:53:32+00:00",
+  "tool_version": "0.1.0",
+  "git": {
+    "commit": "694bd99402b0b14587673b1b342732ae8d8d61be",
+    "dirty": false
+  },
+  "environment": {
+    "python": "3.12.13",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "sqlite": "3.53.1"
+  },
+  "suite": {
+    "name": "sample_project",
+    "path": "benchmarks/tasks/sample_project.json",
+    "sha256": "a52f5199ece6a3ceeed65d1f857b45c5860d2d38f2ee6a932985dc4e777bae7b",
+    "n_tasks": 9
+  },
+  "gate_file": null,
+  "config": {
+    "max_tokens": 4000,
+    "per_kind_limit": 3,
+    "min_relative_score": 0.0,
+    "max_references": 0,
+    "hops": 2,
+    "retrieval": "hybrid",
+    "embed_model": "nomic-embed-text"
+  },
+  "embedding_model": "nomic-embed-text@0a109f422b47",
+  "corpus": {
+    "files": 18,
+    "chunks": 57,
+    "estimated_tokens": 2645
+  },
+  "summary": {
+    "n_tasks": 9,
+    "n_tasks_with_recall": 9,
+    "n_tasks_with_precision": 9,
+    "mean_recall": 0.9444,
+    "min_recall": 0.75,
+    "mean_precision": 0.4092,
+    "recall_by_category": {
+      "adr_constrained_feature": 1.0,
+      "assumption_trap": 1.0,
+      "bugfix": 0.875,
+      "conventions": 1.0,
+      "missing_information": 1.0,
+      "schema": 1.0,
+      "superseded_trap": 1.0,
+      "vocabulary_mismatch": 0.75
+    },
+    "forbidden_returned": 0,
+    "unresolved_misses": 0,
+    "status_mismatches": 0,
+    "mean_package_tokens": 616.5556,
+    "full_corpus_tokens": 2645,
+    "mean_package_to_corpus_ratio": 0.2331,
+    "token_note": "package and corpus tokens are estimates (ceil(chars / 4) heuristic, not a model tokenizer)"
+  },
+  "gate": null
+}

@@ -198,3 +198,40 @@ Conclusion so far: **single-shot retrieval looks capped well below gate 1's
 in phase 2 lets the agent make several requests and read files itself, which
 is the multi-step search these misses need. Whether that is enough is exactly
 what phase 2 measures.
+
+### Phase 1c step 6: two-step retrieval (search, then search for what the top results name)
+
+| Config | Sample recall / precision | Hallpass recall / precision |
+|---|---|---|
+| BM25, 1 hop (baseline) | 0.81 / 0.39 | 0.56 / 0.29 |
+| BM25, 2 hops, follow-up fused into every kind | 0.81 / 0.39 | 0.53 / 0.28 |
+| BM25, 2 hops, follow-up for code/test/schema only | 0.81 / 0.39 | 0.55 / 0.30 |
+| Hybrid, 1 hop | 0.94 / 0.41 | 0.57 / 0.30 |
+| **Hybrid, 2 hops (code/test/schema)** | **0.94 / 0.41** | **0.61 / 0.32** |
+
+Why two hops barely help with BM25: the follow-up searches for names found in
+the first search's top 4 results, and only 54% of those seeds are relevant
+(top-1 relevant in 16 of 20 tasks). Half the names come from the wrong chunks
+and the search drifts ("query drift", the classic failure of pseudo-relevance
+feedback). With hybrid ranking the seeds are better and the follow-up gains a
+little. Exploratory scratch runs (not committed) with the follow-up at half
+weight gave 0.54–0.56: no better.
+
+## Phase 1c conclusion
+
+Best single-request configuration on the development set: **hybrid + 2 hops,
+recall 0.61, precision 0.32** at ~3k tokens (2% of the corpus). Gate 1 needs
+0.80. Twenty tasks are a small sample; differences of a few hundredths are
+within noise.
+
+What was learned:
+
+1. **Vocabulary mismatch is solvable** with embeddings (sample: 0.81 → 0.94).
+2. **Realistic coding tasks need reasoning-driven hops.** The missing pieces
+   (the helper a fix will call, the migration that adds a column) are linked to
+   the task by an engineer's reasoning, not by words or topic, and automatic
+   follow-ups drift when the first results are only half right.
+3. **Gate 1, as defined (one request per task), is not passed** by any method
+   tried. Phase 2's strategy B gives an agent the service as a tool it can call
+   repeatedly, with its own judgement choosing the next request: the missing
+   ingredient here. Whether that closes the gap is phase 2's question.
