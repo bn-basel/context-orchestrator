@@ -352,3 +352,25 @@ At the same size, compact packages reach 0.74 recall instead of 0.61; or the
 same recall with 60% fewer tokens. Caveat: recall here means the package
 *points at* the needed range and shows its opening, not its full text.
 Whether that helps an agent needs an agent check (planned small: ~10 runs).
+
+### Phase 3a agent check: compact vs full packages (run `20261011T053311Z-hallpass-agent`)
+
+Small by design (owner's rule: start with ~10 runs, scale only on a signal).
+Haiku 4.5, 5 tasks chosen before the run (H01, H06, H11, H13, H15: one per
+task type) × B2 (full packages) and B2C (compact packages, 8 per kind) × 1
+run. $0.81 API-equivalent in total.
+
+| | B2 full | B2C compact |
+|---|---|---|
+| Mean score | 0.88 | 0.84 |
+| API-equivalent cost (5 runs) | $0.40 | $0.42 |
+| Median input tokens | 224k | 291k |
+| Service calls per run | 3, 3, 1, 3, 4 | 2, 1, 1, 1, 1 |
+| File-tool calls per run | 8, 15, 6, 9, 12 | 20, 4, 13, 17, 18 |
+
+**No signal, so not scaled up.** With full packages the agent asked the
+service follow-up questions and read fewer files; with excerpts it mostly
+asked once and then opened the files itself, which costs about the same. The
+higher recall of compact packages is "points at the right place", and the
+agent pays to follow each pointer. Full packages stay the default; compact
+mode remains available (`--detail compact`).
