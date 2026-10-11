@@ -147,4 +147,4 @@ itself at an estimated $2, and records OpenRouter's charge per call. Method:
 
 ## License
 
-[MIT](LICENSE). Built by bn-basel with Claude (Anthropic) as co-author.
+[MIT](LICENSE).
