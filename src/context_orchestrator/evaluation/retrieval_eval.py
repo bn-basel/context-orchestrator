@@ -37,6 +37,7 @@ from typing import Any
 from context_orchestrator import __version__
 from context_orchestrator.agent_interface.api import ContextService, Embedder
 from context_orchestrator.models import (
+    DEFAULT_DETAIL,
     DEFAULT_HOPS,
     DEFAULT_MAX_REFERENCES,
     DEFAULT_MIN_RELATIVE_SCORE,
@@ -100,6 +101,7 @@ class RetrievalConfig:
     min_relative_score: float = DEFAULT_MIN_RELATIVE_SCORE
     max_references: int = DEFAULT_MAX_REFERENCES
     hops: int = DEFAULT_HOPS
+    detail: str = DEFAULT_DETAIL
     retrieval: str = "bm25"
     embed_model: str | None = None  # set when retrieval is hybrid or semantic
 
@@ -218,6 +220,7 @@ def evaluate_task(service: ContextService, task: EvalTask, config: RetrievalConf
         min_relative_score=config.min_relative_score,
         max_references=config.max_references,
         hops=config.hops,
+        detail=config.detail,
     )
     started = time.perf_counter()
     package = service.request(request)
@@ -467,6 +470,7 @@ def render_summary(run_meta: dict, results: list[dict]) -> str:
         f"min_relative_score={run_meta['config'].get('min_relative_score', 0.0)}, "
         f"max_references={run_meta['config'].get('max_references', 0)}, "
         f"hops={run_meta['config'].get('hops', 1)}, "
+        f"detail={run_meta['config'].get('detail', 'full')}, "
         f"retrieval={run_meta['config'].get('retrieval', 'bm25')}"
         + (f" ({run_meta['embedding_model']})" if run_meta.get("embedding_model") else ""),
         f"- Corpus: {run_meta['corpus']['files']} files, {run_meta['corpus']['chunks']} chunks, "

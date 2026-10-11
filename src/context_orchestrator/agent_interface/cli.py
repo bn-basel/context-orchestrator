@@ -16,9 +16,11 @@ from pathlib import Path
 
 from context_orchestrator.agent_interface.api import RETRIEVAL_MODES, ContextService
 from context_orchestrator.models import (
+    DEFAULT_DETAIL,
     DEFAULT_HOPS,
     DEFAULT_MAX_REFERENCES,
     DEFAULT_MIN_RELATIVE_SCORE,
+    DETAIL_LEVELS,
     ContextRequest,
     InfoKind,
 )
@@ -58,6 +60,7 @@ def _build_parser() -> argparse.ArgumentParser:
     mcp.add_argument("--max-tokens", type=int, default=4000)
     mcp.add_argument("--per-kind-limit", type=int, default=3)
     mcp.add_argument("--hops", type=int, choices=[1, 2], default=DEFAULT_HOPS)
+    mcp.add_argument("--detail", choices=DETAIL_LEVELS, default=DEFAULT_DETAIL)
     mcp.add_argument(
         "--skip-ingest",
         action="store_true",
@@ -83,6 +86,7 @@ def _build_parser() -> argparse.ArgumentParser:
     req.add_argument("--min-relative-score", type=float, default=DEFAULT_MIN_RELATIVE_SCORE)
     req.add_argument("--max-references", type=int, default=DEFAULT_MAX_REFERENCES)
     req.add_argument("--hops", type=int, choices=[1, 2], default=DEFAULT_HOPS)
+    req.add_argument("--detail", choices=DETAIL_LEVELS, default=DEFAULT_DETAIL)
     req.add_argument("--agent-id", default="cli")
     req.add_argument("--request-file", type=Path, help="read the request from a JSON file")
     req.add_argument("--format", choices=["json", "markdown"], default="json")
@@ -132,6 +136,7 @@ def _build_parser() -> argparse.ArgumentParser:
     ev.add_argument("--min-relative-score", type=float, default=DEFAULT_MIN_RELATIVE_SCORE)
     ev.add_argument("--max-references", type=int, default=DEFAULT_MAX_REFERENCES)
     ev.add_argument("--hops", type=int, choices=[1, 2], default=DEFAULT_HOPS)
+    ev.add_argument("--detail", choices=DETAIL_LEVELS, default=DEFAULT_DETAIL)
     retrieval_options(ev)
     return parser
 
@@ -160,6 +165,7 @@ def _eval_retrieval(args: argparse.Namespace) -> int:
             args.min_relative_score,
             args.max_references,
             args.hops,
+            args.detail,
             args.retrieval,
             args.embed_model if args.retrieval != "bm25" else None,
         ),
@@ -240,7 +246,7 @@ def main(argv: list[str] | None = None) -> int:
                 if not args.skip_ingest:
                     svc.ingest()
                 logging.getLogger(__name__).info("mcp: %d chunks ready", svc.store.count_chunks())
-                config = ServerConfig(args.max_tokens, args.per_kind_limit, args.hops)
+                config = ServerConfig(args.max_tokens, args.per_kind_limit, args.hops, args.detail)
                 run_stdio(McpServer(svc, config))
             return 0
 
@@ -279,6 +285,7 @@ def main(argv: list[str] | None = None) -> int:
                 "min_relative_score": args.min_relative_score,
                 "max_references": args.max_references,
                 "hops": args.hops,
+                "detail": args.detail,
                 "agent_id": args.agent_id,
             }
         else:

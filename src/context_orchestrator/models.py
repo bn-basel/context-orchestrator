@@ -15,6 +15,8 @@ from typing import Any
 DEFAULT_MIN_RELATIVE_SCORE = 0.0
 DEFAULT_MAX_REFERENCES = 0
 DEFAULT_HOPS = 1
+DEFAULT_DETAIL = "full"
+DETAIL_LEVELS = ("full", "compact")
 
 
 class InfoKind(StrEnum):
@@ -121,6 +123,10 @@ class ContextRequest:
     # 2 = search again for the functions, classes and tables the top results name, and
     # fuse both rankings (see retrieval.multihop). 1 = a single search.
     hops: int = DEFAULT_HOPS
+    # "compact": each item shows only its first few lines (signature, docstring, opening
+    # of a section) plus where it is, so a budget holds more pointers; the agent reads the
+    # rest from the file. "full": the whole chunk.
+    detail: str = DEFAULT_DETAIL
     include_superseded: bool = False
     request_id: str = field(default_factory=lambda: uuid.uuid4().hex)
 
@@ -130,6 +136,8 @@ class ContextRequest:
         if "task" not in known or not str(known["task"]).strip():
             raise ValueError("ContextRequest requires a non-empty 'task'")
         known["kinds"] = [InfoKind(k) for k in known.get("kinds", [])]
+        if known.get("detail", DEFAULT_DETAIL) not in DETAIL_LEVELS:
+            raise ValueError(f"detail must be one of {DETAIL_LEVELS}")
         return cls(**known)
 
 
@@ -148,6 +156,7 @@ class ContextItem:
     estimated_tokens: int  # of this item's rendered block (heading, flags and text)
     via: str | None = None  # why it was added when not by search, e.g. "referenced by …"
     similarity: float | None = None  # cosine similarity to the task, when vectors were used
+    excerpt_lines: tuple[int, int] | None = None  # set when only part of the chunk is shown
 
 
 @dataclass(frozen=True, slots=True)
@@ -198,10 +207,17 @@ def render_item(item: ContextItem) -> str:
         flags.append("STALE: file changed since ingestion")
     if item.via:
         flags.append(item.via)
+    more = ""
+    if item.excerpt_lines:
+        first, last = item.excerpt_lines
+        more = (
+            f"… (excerpt: lines {first}-{last} of {item.source.line_start}-"
+            f"{item.source.line_end}; read the file for the rest)\n"
+        )
     return (
         f"## {item.heading}  ({item.source.label()})\n"
         f"_[{', '.join(flags)}]_\n\n"
-        f"{item.text.rstrip()}\n\n"
+        f"{item.text.rstrip()}\n{more}\n"
     )
 
 

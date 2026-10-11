@@ -152,3 +152,25 @@ def test_relative_score_zero_keeps_everything(service: ContextService) -> None:
     base = dict(task=BUG12_TASK, kinds=[InfoKind.KNOWN_ISSUE, InfoKind.DECISION])
     off = service.request(ContextRequest(**base, min_relative_score=0.0))
     assert not any(o.reason.startswith("weak match") for o in off.omitted)
+
+
+def test_compact_detail_shows_verbatim_excerpts_and_fits_more(service: ContextService) -> None:
+    base = dict(task=BUG12_TASK, kinds=[InfoKind.KNOWN_ISSUE, InfoKind.CODE, InfoKind.TEST],
+                max_tokens=600, per_kind_limit=6)  # fmt: skip
+    full = service.request(ContextRequest(**base))
+    compact = service.request(ContextRequest(**base, detail="compact"))
+    assert len(compact.items) > len(full.items)
+    assert compact.estimated_tokens.value <= 600
+    cut = [i for i in compact.items if i.excerpt_lines]
+    assert cut, "long chunks should be cut to an excerpt"
+    for item in cut:
+        first, last = item.excerpt_lines
+        assert first == item.source.line_start and last < item.source.line_end
+        # The excerpt is the chunk's own opening lines, verbatim.
+        assert item.text == "\n".join(item.text.split("\n")[: last - first + 1])
+        assert f"excerpt: lines {first}-{last}" in compact.render_markdown()
+
+
+def test_detail_is_validated() -> None:
+    with pytest.raises(ValueError, match="detail"):
+        ContextRequest.from_dict({"task": "x", "detail": "tiny"})

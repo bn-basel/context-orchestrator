@@ -70,6 +70,7 @@ class ServerConfig:
     max_tokens: int = 4000
     per_kind_limit: int = 3
     hops: int = 1
+    detail: str = "full"
 
 
 class McpServer:
@@ -123,6 +124,7 @@ class McpServer:
                     "max_tokens": int(arguments.get("max_tokens") or self.config.max_tokens),
                     "per_kind_limit": self.config.per_kind_limit,
                     "hops": self.config.hops,
+                    "detail": self.config.detail,
                     "agent_id": "mcp",
                 }
             )

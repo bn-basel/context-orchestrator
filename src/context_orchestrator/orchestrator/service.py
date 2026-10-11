@@ -47,6 +47,9 @@ from context_orchestrator.tokens import ESTIMATE_METHOD, estimate_tokens
 log = logging.getLogger(__name__)
 
 _CODE_KINDS = (InfoKind.CODE, InfoKind.TEST)
+# Lines shown per item in compact mode: enough for a signature and docstring, a table's
+# first columns, or a section's opening sentences.
+COMPACT_LINES = {InfoKind.CODE: 5, InfoKind.TEST: 4, InfoKind.SCHEMA: 8}
 
 
 class ContextOrchestrator:
@@ -157,7 +160,8 @@ class ContextOrchestrator:
             for hit in sorted(round_hits, key=lambda h: -h.score):
                 if hit.chunk.chunk_id in selected:
                     continue
-                if not try_add(self._to_item(hit, fingerprints), hit.chunk.chunk_id):
+                item = self._to_item(hit, fingerprints, detail=request.detail)
+                if not try_add(item, hit.chunk.chunk_id):
                     continue
                 # 3. Follow references from this item right away, so the code a bug report
                 #    or ADR names outranks lower-ranked search hits for the budget.
@@ -174,7 +178,9 @@ class ContextOrchestrator:
                     ):
                         continue
                     via = f"references: `{ref.name}` named in {hit.chunk.source.label()}"
-                    ref_item = self._to_item(ScoredChunk(chunk, 0.0, ()), fingerprints, via=via)
+                    ref_item = self._to_item(
+                        ScoredChunk(chunk, 0.0, ()), fingerprints, via=via, detail=request.detail
+                    )
                     if try_add(ref_item, chunk.chunk_id):
                         references_added += 1
 
@@ -233,14 +239,27 @@ class ContextOrchestrator:
         ]
 
     def _to_item(
-        self, hit: ScoredChunk, fingerprints: dict[str, str | None], via: str | None = None
+        self,
+        hit: ScoredChunk,
+        fingerprints: dict[str, str | None],
+        via: str | None = None,
+        detail: str = "full",
     ) -> ContextItem:
         chunk = hit.chunk
+        text, excerpt = chunk.text, None
+        if detail == "compact":
+            limit = COMPACT_LINES.get(chunk.kind, 6)
+            lines = chunk.text.split("\n")
+            if len(lines) > limit:
+                text = "\n".join(lines[:limit])
+                start = chunk.source.line_start
+                excerpt = (start, start + limit - 1)
         item = ContextItem(
             kind=chunk.kind,
             status=chunk.status,
             heading=chunk.heading,
-            text=chunk.text,
+            text=text,
+            excerpt_lines=excerpt,
             source=chunk.source,
             score=round(hit.score, 4),
             matched_terms=hit.matched_terms,
