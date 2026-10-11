@@ -1,0 +1,2 @@
+# Same bytes on every OS: file hashes in the knowledge base must not depend on checkout platform.
+* text=auto eol=lf

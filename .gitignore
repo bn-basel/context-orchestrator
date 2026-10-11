@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Context Orchestrator state (memory.db, telemetry.jsonl)
+.ctxo/
+
+# Benchmark raw outputs are committed deliberately under benchmarks/results/;
+# scratch runs go here
+benchmarks/scratch/
+
+# Environment / secrets
+.env
+*.local.json
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

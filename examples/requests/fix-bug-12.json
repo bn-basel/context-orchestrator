@@ -1,0 +1,8 @@
+{
+  "task": "Fix BUG-12 so a book returned one hour late is not charged a full day's fine",
+  "kinds": ["known_issue", "code", "test", "decision", "finding"],
+  "constraints": ["money is integer cents", "timestamps are UTC"],
+  "agent_id": "bugfix-agent",
+  "max_tokens": 2500,
+  "per_kind_limit": 2
+}
