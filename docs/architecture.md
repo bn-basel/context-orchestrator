@@ -1,17 +1,19 @@
 # Architecture
 
-This document explains how v0.1 is built and why. It describes what exists;
-planned work is in [ROADMAP.md](../ROADMAP.md).
+This document explains how the system is built and why. It describes what
+exists; planned work is in [ROADMAP.md](../ROADMAP.md), measured results in
+[findings.md](findings.md).
 
 ## Goals and non-goals
 
-**Goals for v0.1:** a small, deterministic, fully inspectable pipeline from
-project files to a source-referenced context package, with telemetry designed
-for later benchmarking.
+**Goals:** a small, deterministic, fully inspectable pipeline from project
+files to a source-referenced context package, plus the harness to measure
+whether it helps agents.
 
-**Non-goals for v0.1:** semantic search, vector databases, distributed
-deployment, agent frameworks, automatic memory writes. Each can be added once
-the evaluation shows a need for it.
+**Non-goals:** vector databases, distributed deployment, agent frameworks,
+automatic memory writes. Features were added only after a measurement showed
+a need (meaning-based search was added once keyword search had demonstrably
+stalled).
 
 ## Module map
 
@@ -19,11 +21,11 @@ the evaluation shows a need for it.
 |---|---|---|
 | `models` | Request/response contract; provenance of numbers | `ContextRequest`, `ContextPackage`, `ContextItem`, `SourceRef`, `Metric` |
 | `memory` | Discover and chunk files; persist chunks and hashes in SQLite | `MemoryStore`, `IngestReport`, `load_file` |
-| `retrieval` | BM25 keyword search with matched-term explanations | `LexicalRetriever`, `ScoredChunk`, `extract_terms` |
+| `retrieval` | BM25 keyword search with matched-term explanations; optional hybrid search (local embeddings, rank fusion); follow-up hops; reference following | `LexicalRetriever`, `HybridRetriever`, `OllamaEmbedder`, `multihop`, `ReferenceIndex` |
 | `orchestrator` | Request → package: per-kind retrieval, budget, staleness, gaps | `ContextOrchestrator` |
-| `agent_interface` | What agents call: Python facade and `ctxo` CLI | `ContextService`, `cli.main` |
+| `agent_interface` | What agents call: Python facade, `ctxo` CLI, MCP server (`request_context` tool over stdio) | `ContextService`, `cli.main`, `McpServer` |
 | `telemetry` | One JSONL event per request; privacy-preserving defaults | `JsonlTelemetry`, `context_request_event` |
-| `evaluation` | Retrieval scoring against labelled tasks; `claude -p` usage parsing | `load_suite`, `run_suite`, `parse_claude_cli_result` |
+| `evaluation` | Retrieval scoring against labelled tasks; agent runs via `claude -p` with rubric grading; paired bootstrap analysis; trace analysis; what-if replay | `run_suite`, `run_agent_suite`, `analyse`, `load_traces`, `estimate` |
 
 Dependencies point one way: `agent_interface → orchestrator → retrieval →
 memory → models`, with `telemetry` used by the orchestrator. `models` imports
@@ -104,6 +106,43 @@ Ingestion only reads project files. All state lives in one directory
 (`<project>/.ctxo/` by default, overridable). A test checks that ingestion
 leaves every project file's modification time unchanged.
 
+### D10. Meaning-based search is optional and local
+
+Embeddings come from a local Ollama server over HTTP (standard library only),
+are stored per chunk and model in SQLite, and are compared by brute-force
+cosine (fine at ~1k chunks). Hybrid mode fuses the BM25 and vector rankings
+per kind with reciprocal rank fusion (k = 60), which needs no score
+calibration between the two scales. BM25 stays the default: no dependency,
+and on the realistic tasks hybrid search improved recall only slightly
+(0.56 → 0.57); it mainly fixes vocabulary mismatch.
+
+### D11. A follow-up hop, restricted to code
+
+`--hops 2` takes the top first-search results, collects the functions,
+classes and specific table names they mention (only names that exist), and
+searches again for them as phrases. The second ranking is fused in for code,
+test and schema kinds only. With BM25 seeds it drifts (only half the seeds
+are relevant); with hybrid seeds it gives the best single-request recall
+(0.61).
+
+### D12. Agents reach the service over MCP
+
+`ctxo mcp` is a minimal MCP server (newline-delimited JSON-RPC over stdio:
+`initialize`, `tools/list`, `tools/call`, `ping`) exposing one tool,
+`request_context`. Tool errors are returned as results with `isError`, so the
+agent can read them. `--skip-ingest` serves an index prepared once, so
+parallel sessions share it read-only.
+
+### D13. The benchmark harness is part of the product
+
+Agent runs use `claude -p` with isolation flags; every run's raw event stream
+is stored (sanitised: no local paths, user names or session ids; gzipped).
+Runs are shuffled with a recorded seed, resumable, and analysed only from the
+stored files: paired per-task comparisons with bootstrap intervals
+(`analyze-agent`), what the agent read and why (`analyze-traces`), and
+counterfactual replays (`what-if`). Labels, rubrics and gate criteria are
+committed before the runs that use them.
+
 ## Data model (SQLite)
 
 ```
@@ -112,6 +151,7 @@ documents(path PK, sha256, kind, status, ingested_at)
 chunks(chunk_id PK, path FK→documents ON DELETE CASCADE, kind, status,
        heading, text, line_start, line_end, metadata_json)
 chunks_fts  FTS5(chunk_id UNINDEXED, heading, text, path; porter unicode61)
+chunk_vectors(chunk_id FK→chunks ON DELETE CASCADE, model, dim, vector BLOB)  -- optional
 ```
 
 BM25 column weights: heading 2.0, text 1.0, path 0.5. Ingestion is
@@ -129,8 +169,9 @@ to one project root and refuses to ingest a different project.
 
 ## Extension points
 
-- **Retriever.** The orchestrator only needs `search(terms, kind, limit) →
-  list[ScoredChunk]`. A semantic retriever can implement the same method.
+- **Retriever.** The orchestrator only needs `search(terms, kind, limit,
+  query_text=...) → list[ScoredChunk]`; `HybridRetriever` is one example.
+- **Embedder.** Anything with `model` and `embed(texts, purpose)`.
 - **Telemetry sink.** Anything with `emit(dict)`.
-- **Agent interface.** An MCP server would be a thin adapter over
-  `ContextService.request`, exposing the same request/response schema.
+- **Agent strategies.** `evaluation/agent_eval.py` defines each strategy as
+  a prompt addition plus tools; new ones take a few lines and a test.

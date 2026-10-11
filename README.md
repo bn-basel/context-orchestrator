@@ -1,227 +1,151 @@
 # Context Orchestrator
 
-An experimental context service for AI agents working on software projects.
+An experiment in giving coding agents **only the project context they need**,
+on demand and with sources, and **measuring** whether that is actually cheaper
+than letting them explore or handing them everything.
 
-Instead of giving every agent the whole project history, a project-wide
-service keeps the project's knowledge (decisions, schemas, conventions, code,
-tests, known bugs) and answers **structured context requests** with a compact,
-**source-referenced** context package. Agents ask for what their current task
-needs; the service says where every piece came from, how far it can be
-trusted, and what it could not find.
+It includes a small context service (SQLite, keyword and optional
+meaning-based search, exposed to agents as an MCP tool) and the benchmark
+harness used to test it with Claude Code. Results are summarised below and
+told in full in [docs/findings.md](docs/findings.md).
 
-> **Status: experiment with first results.** On a synthetic ~140k-token
-> project, 300 Claude Code (Haiku 4.5) runs compared five ways of giving an
-> agent context. When told to use it, the context service cut cost by about
-> a fifth against the agent exploring files on its own (0.79×, 95% interval
-> 0.69–0.89), with no detectable change in plan quality. Putting the whole
-> project in the prompt cost twice as much for at most a small quality gain.
-> One corpus, one small model and regex-graded plans: see
-> [benchmarks/README.md](benchmarks/README.md) for the numbers and their
-> limits, and [docs/benchmark-methodology.md](docs/benchmark-methodology.md)
-> for the method.
+## Results at a glance
 
-## The problem
+300 Claude Code runs (Haiku 4.5) on a synthetic ~140k-token project, 20
+realistic tasks, plans graded against rubrics fixed before the runs. Each
+strategy is compared, per task, with the agent exploring files on its own:
 
-Agents working on a codebase either get too little context (and guess) or too
-much (and pay for it in tokens, latency and distraction). A common middle path
-is retrieval. This project explores a specific version of it:
+| Strategy | Input tokens | Cost (API-equivalent) | Plan quality |
+|---|---|---|---|
+| **Context service, agent told to use it first** | **0.78×** | **0.79×** | no detectable difference |
+| Context service, merely offered | 0.90× (n.s.) | 0.93× | no detectable difference |
+| Whole project in the prompt | 5.1× | 2.0× | slightly higher (borderline) |
+| Oracle: exactly the needed pieces | 0.39× | 0.57× | slightly higher (borderline) |
 
-- one **persistent memory** per project, shared by several specialist agents;
-- **typed requests** ("decisions and schema relevant to task X, under
-  constraint Y") rather than free-text search;
-- **provenance first**: every item carries file, line range and file hash, so
-  it can be checked and detected as stale;
-- **honest gaps**: missing information is reported as unresolved, never filled
-  in, and assumptions are labelled as assumptions;
-- **measurement built in**: every request emits a telemetry event, and every
-  number records whether it was measured, estimated or unavailable.
+- **The service saves about a fifth of the cost**, but only when the agent is
+  told to use it. Offered, it was skipped in 18 of 60 runs.
+- **Full context is the expensive way to a small gain.** The whole project is
+  re-sent on every turn.
+- **Most input cost is old tool output re-sent on every turn.** Replaying the
+  recordings suggests that pruning it in place could cut input tokens by a
+  third to a half. That is untested so far; it needs an agent loop that can
+  edit its own context.
+- **Several ideas did not help:** compact excerpts, "trust the excerpts"
+  instructions, and a reader sub-agent (worse: 1.27× tokens, lower quality).
 
-None of these ideas is new on its own. The goal is a small, inspectable
-system in which their costs and benefits can be measured.
+**Limits:** one synthetic corpus, one small model, regex-graded plans and
+small samples. Costs are the CLI's API-list-price estimates, not subscription
+charges. Read [docs/findings.md](docs/findings.md) before quoting numbers.
 
-## How it works
+## What the service does
+
+Agents send a **typed request** (the task, the kinds of knowledge wanted, a
+token budget) and get back a **context package**:
+
+- **Verbatim excerpts** with file paths, line ranges and file hashes, so every
+  item can be checked and detected as stale.
+- **Trust labels:** `verified`, `observed` (read from source), `unverified`,
+  `assumption`. `superseded` decisions are withheld unless asked for.
+- **Honest gaps:** requested kinds with nothing relevant are listed as
+  unresolved, never filled in.
+- **Telemetry:** one event per request; every number says whether it was
+  measured, estimated or unavailable. Task text is excluded by default.
 
 ```
-project files ──ingest──▶ memory (SQLite + FTS5) ◀──search── retrieval (BM25)
-                                                        ▲
-agent ──ContextRequest──▶ agent_interface ──▶ orchestrator ──▶ ContextPackage ──▶ agent
-                                                        │
-                                                        └──▶ telemetry (JSONL)
+project files ──ingest──▶ memory (SQLite + FTS5 [+ vectors]) ◀── retrieval (BM25 / hybrid, follow-up hop)
+agent ──request_context (MCP) / CLI / Python──▶ orchestrator ──▶ context package ──▶ agent
+                                                     └──▶ telemetry (JSONL)
 ```
 
-1. **Ingest.** Markdown, Python, SQL and config files are split into chunks:
-   Markdown by heading, Python by top-level `def`/`class`, SQL by `CREATE`
-   statement. Each chunk keeps its exact line range and the file's SHA-256.
-   Markdown front matter can declare `kind` and `status`.
-2. **Request.** An agent sends a `ContextRequest`: the task, the kinds of
-   information it wants, any constraints, and a token budget.
-3. **Retrieve.** For each requested kind, BM25 keyword search (SQLite FTS5
-   with Porter stemming) finds candidates and records which terms matched.
-4. **Package.** Candidates are selected round-robin across kinds within the
-   token budget. Superseded decisions are set aside, and source files are
-   re-hashed to flag stale items. Kinds with no match are listed as
-   unresolved.
-5. **Record.** One telemetry event per request: counts, sources, measured
-   latency, and the package size (an estimate). Task text is excluded by
-   default.
+Design decisions and trade-offs: [docs/architecture.md](docs/architecture.md).
 
-Details and trade-offs: [docs/architecture.md](docs/architecture.md).
+## Install
 
-### Information kinds and trust levels
-
-| `kind` | Inferred from (unless front matter says otherwise) |
-|---|---|
-| `decision` | Markdown under `decisions/` or `adr/` |
-| `schema` | `*.sql` |
-| `code` | source files (`.py`, `.js`, `.ts`, …) |
-| `test` | `tests/`, `test_*.py` |
-| `dependency` | `pyproject.toml`, `package.json`, `requirements.txt`, … |
-| `convention`, `constraint`, `known_issue`, `finding` | front matter only |
-| `doc` | any other Markdown or text |
-
-| `status` | Meaning |
-|---|---|
-| `verified` | the document declares it has been checked |
-| `observed` | read directly from a source file: shows what exists, not that it is correct |
-| `unverified` | Markdown that declares no status |
-| `assumption` | declared as an unconfirmed assumption; flagged in the package notes |
-| `superseded` | replaced by a later decision; omitted unless requested |
-
-## Installation
-
-Requires Python 3.11+. The core has **no runtime dependencies** (standard
-library `sqlite3` with FTS5).
+Python 3.11+. The core has **no runtime dependencies** (standard library
+`sqlite3` with FTS5). Meaning-based search is optional and uses a local
+[Ollama](https://ollama.com) with `nomic-embed-text`; nothing leaves the
+machine.
 
 ```bash
 git clone https://github.com/bn-basel/context-orchestrator.git
 cd context-orchestrator
-uv sync            # or: python -m venv .venv && pip install -e . pytest ruff
+uv sync
 ```
 
-## Usage
-
-### Command line
+## Use it
 
 ```bash
-uv run ctxo ingest examples/sample_project
+uv run ctxo ingest path/to/project
+uv run ctxo request path/to/project --task "Why are refunds wrong after a closure?" --kind decision --kind known_issue --kind code --format markdown
 ```
 
-```bash
-uv run ctxo request examples/sample_project --task "Fix BUG-12 so a book returned one hour late is not charged a full day's fine" --kind known_issue --kind code --kind test --kind finding --format markdown
+As a tool for Claude Code (or any MCP host), add an MCP config such as:
+
+```json
+{"mcpServers": {"ctxo": {"command": "uv", "args": ["run", "--directory", "path/to/context-orchestrator", "ctxo", "mcp", "path/to/project"]}}}
 ```
 
-`--format json` (the default) returns the full package for programmatic use.
-A request can also come from a file: `--request-file examples/requests/fix-bug-12.json`.
-State goes to `<project>/.ctxo/` (or `--state-dir`); project files are only
-read, never written.
+Useful options: `--retrieval hybrid` (needs Ollama), `--hops 2` (search again
+for what the first results name), `--detail compact`, `--max-tokens N`.
 
-### Python
+From Python:
 
 ```python
 from context_orchestrator import ContextService, ContextRequest, InfoKind
 
 with ContextService("examples/sample_project") as svc:
     svc.ingest()
-    package = svc.request(
-        ContextRequest(
-            task="Cap overdue fines at the book's replacement cost",
-            kinds=[InfoKind.DECISION, InfoKind.CONSTRAINT, InfoKind.CODE],
-            constraints=["money is integer cents"],
-            max_tokens=2000,
-        )
-    )
-    for item in package.items:
-        print(item.source.label(), item.kind, item.status, item.matched_terms)
-    print(package.unresolved)
+    package = svc.request(ContextRequest(
+        task="Cap overdue fines at the book's replacement cost",
+        kinds=[InfoKind.DECISION, InfoKind.CONSTRAINT, InfoKind.CODE],
+    ))
+    print(package.render_markdown())
 ```
 
-### Response shape
+Markdown front matter (`kind:`, `status:`) lets a project label its own
+documents; otherwise kinds are inferred from paths (`decisions/` → decision,
+`*.sql` → schema, `tests/` → test, …).
 
-Abridged output of `ctxo request examples/sample_project --request-file
-examples/requests/fix-bug-12.json` (first of 8 items; text, hash and ids
-shortened):
+## Reproduce the experiments
 
-```json
-{
-  "request_id": "733c81df…",
-  "task": "Fix BUG-12 so a book returned one hour late is not charged a full day's fine",
-  "items": [{
-    "kind": "known_issue",
-    "status": "verified",
-    "heading": "Known issues > BUG-12: days_overdue counts a partial day as a full day",
-    "text": "# Known issues\n\n## BUG-12: days_overdue counts a partial day as a full day\n…",
-    "source": {"path": "docs/known-issues.md", "line_start": 5, "line_end": 11,
-               "file_sha256": "eb684384…", "ingested_at": "2026-10-11T00:24:35+00:00"},
-    "score": 17.7164,
-    "matched_terms": ["bug", "days", "day", "full", "book", "returned", "hour",
-                      "timestamp", "charged", "fine"],
-    "stale": false,
-    "estimated_tokens": 86
-  }],
-  "unresolved": ["No finding information matched the task terms. It may be missing from the knowledge base, or described with different vocabulary."],
-  "omitted": [],
-  "estimated_tokens": {"value": 734, "kind": "estimated",
-                       "method": "ceil(chars / 4) heuristic, not a model tokenizer"},
-  "query_terms": ["bug", "book", "returned", "hour", "late", "charged", "full", "day", "fine",
-                  "money", "integer", "cents", "timestamps", "utc"],
-  "notes": []
-}
-```
-
-## Tests
+Everything runs from committed task suites and writes raw results to
+`benchmarks/results/<run>/`. Retrieval evaluations make no model calls.
+Agent runs call `claude -p` and **use real Claude usage**: start small.
 
 ```bash
 uv run pytest
-uv run ruff check .
+uv run ctxo eval-retrieval benchmarks/tasks/hallpass.json --gate benchmarks/gate1.json
+uv run ctxo eval-agent benchmarks/tasks/hallpass.json --rubrics benchmarks/tasks/hallpass.rubrics.json --tasks H01,H06 --strategies B2,C --reps 1
+uv run ctxo analyze-agent benchmarks/results/<run>
+uv run ctxo analyze-traces benchmarks/results/<run> --suite benchmarks/tasks/hallpass.json
+uv run ctxo what-if benchmarks/results/<run> --suite benchmarks/tasks/hallpass.json
 ```
 
-Retrieval benchmark (phase 1, no model calls):
-
-```bash
-uv run ctxo eval-retrieval benchmarks/tasks/sample_project.json --gate benchmarks/gate1.json
-```
-
-The tests run the whole pipeline against
-[`examples/sample_project`](examples/sample_project), a synthetic library
-lending service with ADRs (one superseded), a schema, conventions, a
-constraint, a recorded assumption, known bugs, code and tests. It contains no
-`finding` documents on purpose, so the unresolved path is exercised.
-
-## Limitations (current)
-
-- **Keyword retrieval only.** BM25 misses synonyms and paraphrases ("penalty"
-  will not find "fine"). It also favours short chunks: in the sample schema
-  the one-line `CREATE INDEX … ON loans` outranks the `CREATE TABLE loans` it
-  belongs to.
-- **Token counts in the service are estimates** (`chars / 4`). Real counts
-  come from the model provider's usage data during benchmark runs.
-- **Retrieval recall is limited** (about 0.6 on realistic tasks with hybrid
-  search): needed pieces are often linked to a task by reasoning, not words.
-- **No memory write path yet.** Agents cannot record findings; the knowledge
-  base changes only by editing files and re-ingesting.
-- **Evidence is narrow:** one synthetic corpus, one small model, plans graded
-  by regex rubrics. The results are a measured starting point, not a general
-  claim.
-- Status labels are only as good as the front matter people write.
-
-See [ROADMAP.md](ROADMAP.md) for what is implemented and what is planned.
+The method is in [docs/benchmark-methodology.md](docs/benchmark-methodology.md),
+and every run with its numbers and caveats is in
+[benchmarks/README.md](benchmarks/README.md).
 
 ## Repository layout
 
 ```
 src/context_orchestrator/
-  models.py           request/response contract, Metric provenance
-  memory/             file discovery, chunking, SQLite store
-  retrieval/          BM25 retrieval with matched-term explanations
-  orchestrator/       request → package pipeline
-  agent_interface/    Python API (ContextService) and CLI (ctxo)
-  telemetry/          JSONL events
-  evaluation/         retrieval scoring, `claude -p` usage parsing
-tests/                unit and end-to-end tests
-benchmarks/           labelled task suites, gate criteria, raw run results
-examples/             sample project and example requests
-docs/                 architecture and benchmark methodology
+  memory/            file discovery, structure-aware chunking, SQLite store
+  retrieval/         BM25, hybrid (embeddings + rank fusion), follow-up hops, references
+  orchestrator/      request → package (budget, trust labels, staleness, gaps)
+  agent_interface/   Python API, `ctxo` CLI, MCP server
+  telemetry/         JSONL events with metric provenance
+  evaluation/        retrieval scoring, agent runner, paired analysis, trace analysis, what-if replay
+benchmarks/          corpus (synthetic "Hallpass" project), tasks, rubrics, raw results
+examples/            a small sample project
+docs/                findings, architecture, benchmark methodology
+tests/               unit and end-to-end tests (no model calls)
 ```
+
+## Status
+
+Research code: tested, but young. See [ROADMAP.md](ROADMAP.md) for what is
+done and what is open, and [docs/findings.md](docs/findings.md) for what to
+try next.
 
 ## License
 
