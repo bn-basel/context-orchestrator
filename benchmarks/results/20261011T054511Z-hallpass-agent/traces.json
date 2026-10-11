@@ -1,0 +1,86 @@
+{
+  "B2": {
+    "runs": 5,
+    "reads_per_run": 5.4,
+    "read_chars_per_run": 20967,
+    "carried_share_by_tool": {
+      "Glob": 0.057,
+      "Grep": 0.02,
+      "Read": 0.44,
+      "mcp__ctxo__request_context": 0.483
+    },
+    "reads_by_class": {
+      "served": 7,
+      "needed_missed": 8,
+      "same_file": 0,
+      "unrelated": 12
+    },
+    "read_chars_by_class": {
+      "served": 31778,
+      "needed_missed": 39869,
+      "same_file": 0,
+      "unrelated": 33190
+    },
+    "label_coverage": {
+      "served": 0.321,
+      "read_only": 0.321,
+      "unseen": 0.357
+    },
+    "mean_score_by_unseen_labels": {
+      "0": [
+        null,
+        0
+      ],
+      "1": [
+        0.9,
+        2
+      ],
+      "2+": [
+        0.933,
+        3
+      ]
+    }
+  },
+  "B2V": {
+    "runs": 5,
+    "reads_per_run": 4.4,
+    "read_chars_per_run": 17069,
+    "carried_share_by_tool": {
+      "Glob": 0.014,
+      "Grep": 0.043,
+      "Read": 0.385,
+      "mcp__ctxo__request_context": 0.558
+    },
+    "reads_by_class": {
+      "served": 5,
+      "needed_missed": 5,
+      "same_file": 0,
+      "unrelated": 12
+    },
+    "read_chars_by_class": {
+      "served": 26584,
+      "needed_missed": 21799,
+      "same_file": 0,
+      "unrelated": 36960
+    },
+    "label_coverage": {
+      "served": 0.357,
+      "read_only": 0.214,
+      "unseen": 0.429
+    },
+    "mean_score_by_unseen_labels": {
+      "0": [
+        null,
+        0
+      ],
+      "1": [
+        null,
+        0
+      ],
+      "2+": [
+        0.84,
+        5
+      ]
+    }
+  }
+}

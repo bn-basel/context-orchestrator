@@ -419,3 +419,27 @@ their context in the prompt.
 Implications for the next change (to test with ~10 runs): tell the agent the
 excerpts are verbatim with exact line ranges, so it opens files only for
 parts not shown; and/or shrink packages, since they are re-sent every turn.
+
+### Phase 3b agent check: "rely on the excerpts" (run `20261011T054511Z-hallpass-agent`)
+
+Haiku 4.5, same 5 tasks as phase 3a × B2 and B2V (B2 + "Its excerpts are
+verbatim with exact file paths and line ranges: rely on them, and open a file
+only for parts that were not shown") × 1 run. $0.75 API-equivalent.
+
+| | B2 | B2V |
+|---|---|---|
+| Mean score | 0.92 | 0.84 |
+| API-equivalent cost (5 runs) | $0.385 | $0.369 |
+| File reads per run | 5.4 | 4.4 |
+| Read volume re-opening served ranges | 30% | 31% |
+
+**No signal; not scaled up.** The instruction did not reduce re-reading of
+served ranges (30% vs 31%).
+
+**How noisy are single runs?** Across the 300 phase 2 runs, the same task and
+strategy vary in input tokens by a standard deviation of 0.50 in log terms
+(about ×1.7 either way). With per-task pairing, detecting a 50% token saving
+at 80% power needs ~18 runs, and a 20% saving ~160 runs. Small (~10-run)
+checks can catch large effects and clear behaviour changes, not modest
+savings. Cheaper, less noisy signals (behaviour measures from traces, such as
+re-read share or service-call counts) are better targets for small checks.
