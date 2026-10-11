@@ -30,8 +30,8 @@ cache from that point on.
 
 Every number is labelled: token counts are measured (reported by the API);
 cost is estimated from list prices, and measured when OpenRouter reports the
-charged amount for the call. The API key is read from the environment only
-and never written anywhere.
+charged amount for the call. The API key is read from the environment or the
+repository's git-ignored ``.env`` file, and never printed or written anywhere.
 """
 
 from __future__ import annotations
@@ -65,6 +65,7 @@ from context_orchestrator.tokens import estimate_tokens
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api"
 KEY_ENV = "OPENROUTER_API_KEY"
+ENV_FILE = Path(__file__).resolve().parents[3] / ".env"  # repository root; git-ignored
 DEFAULT_MODEL = "anthropic/claude-haiku-4.5"
 # USD per million tokens: input, output, cache write (5-minute), cache read. Anthropic list
 # prices, which OpenRouter passes through; used only for estimates.
@@ -336,15 +337,35 @@ class Model(Protocol):
     def __call__(self, **kwargs: Any) -> Turn: ...
 
 
+def read_key() -> str | None:
+    """The OpenRouter key: the environment variable if set, else ``KEY=value`` in ENV_FILE.
+
+    ENV_FILE is the repository's ``.env``, which git ignores. Only this one key is read
+    from it, and it is never printed or stored.
+    """
+    if os.environ.get(KEY_ENV):
+        return os.environ[KEY_ENV]
+    try:
+        lines = ENV_FILE.read_text(encoding="utf-8-sig").splitlines()
+    except OSError:
+        return None
+    for line in lines:
+        name, sep, value = line.strip().partition("=")
+        if sep and name.strip() == KEY_ENV:
+            value = value.strip().strip("\"'")
+            return value or None
+    return None
+
+
 def openrouter_model(api_key: str | None = None) -> Model:
     """A Model calling OpenRouter's Anthropic-compatible endpoint with the Anthropic SDK."""
     try:
         import anthropic
     except ImportError as exc:  # optional: uv sync --group loop
         raise RuntimeError("the agent loop needs the Anthropic SDK: uv sync --group loop") from exc
-    key = api_key or os.environ.get(KEY_ENV)
+    key = api_key or read_key()
     if not key:
-        raise RuntimeError(f"set {KEY_ENV} in your environment (never in a file or the chat)")
+        raise RuntimeError(f"put {KEY_ENV}=<key> in {ENV_FILE} (or set it in the environment)")
     client = anthropic.Anthropic(
         api_key=None, auth_token=key, base_url=OPENROUTER_BASE_URL, max_retries=4
     )
@@ -367,7 +388,7 @@ def openrouter_model(api_key: str | None = None) -> Model:
 
 def openrouter_generation_cost(generation_id: str, api_key: str | None = None) -> float | None:
     """The charged cost OpenRouter reports for one call, or None if unavailable."""
-    key = api_key or os.environ.get(KEY_ENV)
+    key = api_key or read_key()
     if not key or not generation_id:
         return None
     url = f"https://openrouter.ai/api/v1/generation?id={generation_id}"
@@ -387,7 +408,7 @@ def openrouter_generation_cost(generation_id: str, api_key: str | None = None) -
 
 def openrouter_key_status(api_key: str | None = None) -> dict[str, Any] | None:
     """The key's limit and usage so far (USD), as OpenRouter reports them."""
-    key = api_key or os.environ.get(KEY_ENV)
+    key = api_key or read_key()
     if not key:
         return None
     request = urllib.request.Request(

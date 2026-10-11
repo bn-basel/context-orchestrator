@@ -33,9 +33,11 @@ with caveats: [benchmarks/README.md](benchmarks/README.md).
 Everything for phase 4 is built and tested offline; plan and pre-selected
 tasks are in benchmarks/README.md ("Phase 4 plan"). Order:
 
-1. The owner creates an OpenRouter key **capped at $5** and sets it as the
-   Windows user environment variable `OPENROUTER_API_KEY`, then restarts the
-   app. Never ask for the key in chat or write it to a file. Subscription
+1. The owner creates an OpenRouter key **capped at $5** (limit set on
+   openrouter.ai) and pastes it into the repository's `.env` file
+   (`OPENROUTER_API_KEY=...`; git ignores `.env`, template in `.env.example`).
+   The environment variable of the same name also works and wins. Never ask
+   for the key in chat, and never open, print or copy `.env`. Subscription
    logins can't drive our own loop (Anthropic's terms limit them to Claude
    Code).
 2. `uv sync --group loop`, then `uv run ctxo loop-probe` (one tiny call):

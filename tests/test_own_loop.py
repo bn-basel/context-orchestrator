@@ -225,8 +225,24 @@ def test_memory_experiment_follow_up_sees_parent_findings(tmp_path: Path) -> Non
     assert "Finding: Block bookings drift an hour after the clocks change" in served
 
 
-def test_no_key_gives_a_clear_error(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_key_comes_from_env_var_first_then_env_file(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    env_file = tmp_path / ".env"
+    monkeypatch.setattr(own_loop, "ENV_FILE", env_file)
     monkeypatch.delenv(own_loop.KEY_ENV, raising=False)
+    assert own_loop.read_key() is None  # no file
+    env_file.write_text("# comment\nOTHER=x\nOPENROUTER_API_KEY=\n", "utf-8")
+    assert own_loop.read_key() is None  # present but empty
+    env_file.write_text('OPENROUTER_API_KEY = "sk-or-test"\n', "utf-8")
+    assert own_loop.read_key() == "sk-or-test"
+    monkeypatch.setenv(own_loop.KEY_ENV, "from-env")
+    assert own_loop.read_key() == "from-env"
+
+
+def test_no_key_gives_a_clear_error(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.delenv(own_loop.KEY_ENV, raising=False)
+    monkeypatch.setattr(own_loop, "ENV_FILE", tmp_path / "missing.env")  # ignore a real .env
     assert own_loop.openrouter_key_status() is None  # no request is made without a key
     assert own_loop.openrouter_generation_cost("gen-1") is None
     with pytest.raises(RuntimeError, match="OPENROUTER_API_KEY|Anthropic SDK"):

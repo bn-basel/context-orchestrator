@@ -539,7 +539,8 @@ system prompt and tools).
 
 Every token count is measured from the API's usage. Cost is shown twice:
 estimated from list prices, and measured as OpenRouter's reported charge.
-The owner's key is capped at $5 on OpenRouter; the loop also stops itself at
+The owner's key (in the git-ignored `.env`, see `.env.example`) is capped at $5
+on OpenRouter; the loop also stops itself at
 an estimated $2 per experiment and $0.60 per run.
 
 **4a, pruning (10 runs).** Arms `L` (file tools only) and `LP` (the same,
