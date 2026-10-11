@@ -14,7 +14,12 @@ import sys
 from pathlib import Path
 
 from context_orchestrator.agent_interface.api import ContextService
-from context_orchestrator.models import DEFAULT_MIN_RELATIVE_SCORE, ContextRequest, InfoKind
+from context_orchestrator.models import (
+    DEFAULT_MAX_REFERENCES,
+    DEFAULT_MIN_RELATIVE_SCORE,
+    ContextRequest,
+    InfoKind,
+)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -47,6 +52,7 @@ def _build_parser() -> argparse.ArgumentParser:
     req.add_argument("--max-tokens", type=int, default=4000)
     req.add_argument("--per-kind-limit", type=int, default=3)
     req.add_argument("--min-relative-score", type=float, default=DEFAULT_MIN_RELATIVE_SCORE)
+    req.add_argument("--max-references", type=int, default=DEFAULT_MAX_REFERENCES)
     req.add_argument("--agent-id", default="cli")
     req.add_argument("--request-file", type=Path, help="read the request from a JSON file")
     req.add_argument("--format", choices=["json", "markdown"], default="json")
@@ -68,6 +74,7 @@ def _build_parser() -> argparse.ArgumentParser:
     ev.add_argument("--max-tokens", type=int, default=4000)
     ev.add_argument("--per-kind-limit", type=int, default=3)
     ev.add_argument("--min-relative-score", type=float, default=DEFAULT_MIN_RELATIVE_SCORE)
+    ev.add_argument("--max-references", type=int, default=DEFAULT_MAX_REFERENCES)
     return parser
 
 
@@ -83,7 +90,9 @@ def _eval_retrieval(args: argparse.Namespace) -> int:
     run = run_suite(
         suite,
         args.out,
-        RetrievalConfig(args.max_tokens, args.per_kind_limit, args.min_relative_score),
+        RetrievalConfig(
+            args.max_tokens, args.per_kind_limit, args.min_relative_score, args.max_references
+        ),
         gate=gate,
         gate_path=args.gate,
     )
@@ -142,6 +151,7 @@ def main(argv: list[str] | None = None) -> int:
                 "max_tokens": args.max_tokens,
                 "per_kind_limit": args.per_kind_limit,
                 "min_relative_score": args.min_relative_score,
+                "max_references": args.max_references,
                 "agent_id": args.agent_id,
             }
         else:

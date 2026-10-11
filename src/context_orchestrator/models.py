@@ -13,6 +13,7 @@ from enum import StrEnum
 from typing import Any
 
 DEFAULT_MIN_RELATIVE_SCORE = 0.0
+DEFAULT_MAX_REFERENCES = 0
 
 
 class InfoKind(StrEnum):
@@ -113,6 +114,9 @@ class ContextRequest:
     # Drop hits scoring below this fraction of the query's best hit (any kind). A requested
     # kind left with only such weak hits is reported as unresolved. 0 disables the filter.
     min_relative_score: float = DEFAULT_MIN_RELATIVE_SCORE
+    # After search, add up to this many code/test chunks that define functions or classes
+    # named in the selected items (budget permitting, requested kinds only). 0 disables.
+    max_references: int = DEFAULT_MAX_REFERENCES
     include_superseded: bool = False
     request_id: str = field(default_factory=lambda: uuid.uuid4().hex)
 

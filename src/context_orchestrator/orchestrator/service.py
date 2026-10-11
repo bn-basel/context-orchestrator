@@ -32,6 +32,7 @@ from context_orchestrator.models import (
     render_unresolved,
 )
 from context_orchestrator.retrieval.lexical import LexicalRetriever, ScoredChunk, extract_terms
+from context_orchestrator.retrieval.references import ReferenceIndex
 from context_orchestrator.telemetry.events import (
     NullTelemetry,
     TelemetrySink,
@@ -52,6 +53,7 @@ class ContextOrchestrator:
     ) -> None:
         self.store = store
         self.retriever = retriever or LexicalRetriever(store)
+        self.references = ReferenceIndex(store)
         self.telemetry = telemetry or NullTelemetry()
         self.clock = clock
 
@@ -139,7 +141,13 @@ class ContextOrchestrator:
                 used_tokens += cost
                 items.append(item)
 
-        # 3. Annotate.
+        # 3. Follow references from selected items to the code they name.
+        if request.max_references > 0:
+            used_tokens = self._add_references(
+                request, items, selected, used_tokens, omitted, fingerprints
+            )
+
+        # 4. Annotate.
         stale = [i for i in items if i.stale]
         if stale:
             notes.append(
@@ -173,7 +181,43 @@ class ContextOrchestrator:
 
     # -- helpers ------------------------------------------------------------
 
-    def _to_item(self, hit: ScoredChunk, fingerprints: dict[str, str | None]) -> ContextItem:
+    def _add_references(
+        self,
+        request: ContextRequest,
+        items: list[ContextItem],
+        selected: set[str],
+        used_tokens: int,
+        omitted: list[OmittedItem],
+        fingerprints: dict[str, str | None],
+    ) -> int:
+        allowed = set(request.kinds)
+        added = 0
+        for source_item in list(items):  # only items found by search, not added references
+            if added >= request.max_references:
+                break
+            source_chunk = self.store.chunk_by_source(source_item.source)
+            if source_chunk is None:
+                continue
+            for ref in self.references.references_in(source_chunk):
+                chunk = ref.chunk
+                if added >= request.max_references:
+                    break
+                if chunk.chunk_id in selected or (allowed and chunk.kind not in allowed):
+                    continue
+                via = f"references: `{ref.name}` named in {source_item.source.label()}"
+                item = self._to_item(ScoredChunk(chunk, 0.0, ()), fingerprints, via=via)
+                if used_tokens + item.estimated_tokens > request.max_tokens:
+                    omitted.append(OmittedItem(chunk.source, f"token budget ({via})"))
+                    continue
+                selected.add(chunk.chunk_id)
+                used_tokens += item.estimated_tokens
+                items.append(item)
+                added += 1
+        return used_tokens
+
+    def _to_item(
+        self, hit: ScoredChunk, fingerprints: dict[str, str | None], via: str | None = None
+    ) -> ContextItem:
         chunk = hit.chunk
         item = ContextItem(
             kind=chunk.kind,
@@ -185,6 +229,7 @@ class ContextOrchestrator:
             matched_terms=hit.matched_terms,
             stale=self._is_stale(chunk.source, fingerprints),
             estimated_tokens=0,
+            via=via,
         )
         return replace(item, estimated_tokens=estimate_tokens(render_item(item)))
 

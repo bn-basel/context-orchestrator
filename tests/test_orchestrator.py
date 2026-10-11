@@ -34,7 +34,7 @@ def test_full_flow_returns_sourced_context(
         lines = (project / item.source.path).read_text(encoding="utf-8").splitlines()
         assert item.text == "\n".join(lines[item.source.line_start - 1 : item.source.line_end])
         assert item.stale is False
-        assert item.matched_terms  # every item is explained by matched terms
+        assert item.matched_terms or item.via  # every item is explained
 
     # ...and the gap is reported instead of being filled in.
     assert len(package.unresolved) == 1

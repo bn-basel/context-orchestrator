@@ -37,6 +37,7 @@ from typing import Any
 from context_orchestrator import __version__
 from context_orchestrator.agent_interface.api import ContextService
 from context_orchestrator.models import (
+    DEFAULT_MAX_REFERENCES,
     DEFAULT_MIN_RELATIVE_SCORE,
     ContextRequest,
     InfoKind,
@@ -96,6 +97,7 @@ class RetrievalConfig:
     max_tokens: int = 4000
     per_kind_limit: int = 3
     min_relative_score: float = DEFAULT_MIN_RELATIVE_SCORE
+    max_references: int = DEFAULT_MAX_REFERENCES
 
 
 # -- loading and validation ------------------------------------------------------
@@ -210,6 +212,7 @@ def evaluate_task(service: ContextService, task: EvalTask, config: RetrievalConf
         max_tokens=config.max_tokens,
         per_kind_limit=config.per_kind_limit,
         min_relative_score=config.min_relative_score,
+        max_references=config.max_references,
     )
     started = time.perf_counter()
     package = service.request(request)
@@ -444,7 +447,8 @@ def render_summary(run_meta: dict, results: list[dict]) -> str:
         + (" (uncommitted changes present)" if git["dirty"] else ""),
         f"- Config: max_tokens={run_meta['config']['max_tokens']}, "
         f"per_kind_limit={run_meta['config']['per_kind_limit']}, "
-        f"min_relative_score={run_meta['config'].get('min_relative_score', 0.0)}",
+        f"min_relative_score={run_meta['config'].get('min_relative_score', 0.0)}, "
+        f"max_references={run_meta['config'].get('max_references', 0)}",
         f"- Corpus: {run_meta['corpus']['files']} files, {run_meta['corpus']['chunks']} chunks, "
         f"~{run_meta['corpus']['estimated_tokens']} tokens (estimated)",
         "",

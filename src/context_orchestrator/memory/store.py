@@ -205,6 +205,13 @@ class MemoryStore:
             metadata=json.loads(row["metadata_json"]),
         )
 
+    def chunk_by_source(self, source: SourceRef) -> Chunk | None:
+        row = self.conn.execute(
+            "SELECT * FROM chunks WHERE path = ? AND line_start = ? AND line_end = ?",
+            (source.path, source.line_start, source.line_end),
+        ).fetchone()
+        return self.row_to_chunk(row) if row else None
+
     def iter_chunks(self) -> Iterator[Chunk]:
         for row in self.conn.execute("SELECT * FROM chunks ORDER BY path, line_start"):
             yield self.row_to_chunk(row)
