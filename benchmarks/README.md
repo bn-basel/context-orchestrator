@@ -600,3 +600,39 @@ The package grows by ~300 tokens. Findings are matched by keywords only, so
 a finding worded differently from the new task can be missed (F07 got one of
 six). At most 3 findings are served per request. Real agents will record
 fewer and vaguer findings, so this is a ceiling for a single request.
+
+## Phase 4a result: pruning (run `20261011T071428Z-loop-prune`)
+
+Claude Haiku 5.5 in our own loop, 5 tasks × 2 arms × 1 run, as planned.
+**Total charge $0.059** (OpenRouter's reported charge; the list-price
+estimate matched it to the cent, and the key's usage counter agrees).
+
+| Arm | Runs | Mean score | Median input tokens | Total cost (measured) | Median tool calls |
+|---|---|---|---|---|---|
+| L, no pruning | 5 | 0.92 | 93k | $0.031 | 16 |
+| LP, pruning | 5 | 0.96 | 76k | $0.036 | 21 |
+
+Paired per task (geometric mean): **input tokens ×0.95, cost ×1.17**,
+score +0.04 (one check on one task; within noise). Per-task cost ratios:
+H09 ×0.91, H11 ×1.53, H13 ×0.90, H17 ×1.39, H19 ×1.24.
+
+**Pruning did not save money here.** Why, from the transcripts:
+
+1. **Haiku 5.5 works in few, wide steps.** It issues 2–6 tool calls per
+   step and finishes in 4–9 model calls (Haiku 4.5 in Claude Code took many
+   more, narrower steps). Old tool output is re-sent only a few times, so
+   there is little to save; most of the cost is cache writes and output
+   (which includes thinking), and pruning touches neither.
+2. **Pruned agents went back for what was removed.** Each LP run pruned once,
+   at the 3rd or 4th call; afterwards three of five LP runs repeated earlier
+   tool calls (12 repeats in total, none in L) and LP runs took 1–3 more
+   steps.
+3. **Each prune rewrites the cache** from the edit point on and drops the
+   thinking blocks after it (1–2 per run).
+
+The phase 3c what-if estimate (−33% to −53% input tokens) came from Claude
+Code + Haiku 4.5 recordings with many narrow steps; it does not carry over
+to this model and harness. 5 pairs can only show large effects, and none
+showed in the direction of a saving, so pruning is **not scaled up**. It
+might still pay on much longer runs (contexts above Haiku 5.5's 100k-token
+price step), which these tasks never reached.

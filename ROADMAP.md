@@ -128,7 +128,8 @@ models, graders) is untested.
       served before search results, flagged stale when the file changes.
 - [x] Five follow-up tasks with rubrics, committed before any run. Offline
       ceiling: one request's recall 0.24 → 0.45 with ideal parent memory.
-- [ ] 4a: pruning check, 10 runs (needs the owner's OpenRouter key).
+- [x] 4a: pruning check, 10 runs on Haiku 5.5 ($0.06): tokens ×0.95, cost ×1.17,
+      no saving. The model works in few, wide steps, and pruned agents re-read.
 - [ ] 4b: memory check, 15 runs.
 
 ## Next: candidates, in order of evidence
