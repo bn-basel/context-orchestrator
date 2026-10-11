@@ -669,3 +669,33 @@ a 10–20% effect from noise. The parent runs' extra cost for recording
 findings (4 calls each) was not isolated, so it is not netted out here; for
 a single follow-up it would likely eat the saving. Memory pays only if it
 is reused, so a fair test needs several follow-ups per parent, or more pairs.
+
+### Phase 4b replication: 3 more repetitions (run `20261011T073027Z-loop-memory`)
+
+The same design × 3 repetitions: 45 runs (15 parents, 30 follow-ups), no
+errors, **$0.271 measured**. The analysis script (`memory_analysis.py`:
+pairs = task × repetition, 10,000 bootstrap resamples) was committed while
+the runs were going, before their results were read.
+
+| Follow-ups, memory vs empty | Geometric-mean ratio | 95% interval | Pairs lower with memory |
+|---|---|---|---|
+| Input tokens, replication (15 pairs) | ×0.95 | ×0.76 – ×1.17 | 10 of 15 |
+| **Cost, replication (15 pairs)** | **×1.02** | **×0.92 – ×1.14** | 7 of 15 |
+| Input tokens, pooled with the first run (20 pairs) | ×0.91 | ×0.75 – ×1.10 | 13 of 20 |
+| **Cost, pooled (20 pairs)** | **×0.98** | **×0.90 – ×1.09** | 11 of 20 |
+
+Score: memory −0.007 (replication), −0.013 (pooled); 12 of 20 pairs equal.
+Per-task cost ratios in the replication: F01 ×0.90, F05 ×1.18, F07 ×0.94,
+F10 ×0.94, F12 ×1.15.
+
+**No measurable saving.** The first run's ×0.89 came mostly from one
+wandering run without memory (F07) and did not replicate. The interval rules
+out a saving larger than about 10% for a single follow-up in this setting.
+
+**Why:** the findings arrive (parents recorded 4–5 each, all accurate) but
+the agents **opened 30 of the 36 files the findings cited anyway**, the same
+pattern as phase 3b, where agents re-read 35% of what the service had
+already served. The system prompt says findings are unreviewed and to check
+anything relied on, which invites this; phase 3b's "rely on the excerpts"
+instruction did not change the behaviour either. Memory saves reading only
+if agents trust it, and an unreviewed finding should not be trusted blindly.

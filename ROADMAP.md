@@ -132,7 +132,8 @@ models, graders) is untested.
       no saving. The model works in few, wide steps, and pruned agents re-read.
 - [x] 4b: memory check, 15 runs on Haiku 5.5 ($0.09): findings accurate and
       served; follow-ups ×0.80 tokens, ×0.89 cost (4 of 5 cheaper, mostly one
-      task), score −0.03. Suggestive, not shown; needs more pairs or reuse.
+      task), score −0.03. Replication (45 runs, $0.27): cost ×1.02 [0.92–1.14];
+      pooled ×0.98. No saving: agents opened 30 of 36 cited files anyway.
 
 ## Next: candidates, in order of evidence
 - [ ] **Robustness**: a second model, a real open-source corpus, an
