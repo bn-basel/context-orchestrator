@@ -3,7 +3,7 @@
 Read this first when resuming work in a new session. Keep it current: update
 it at the end of every milestone, and before a session's context runs out.
 
-**Last updated:** 2026-10-11, phase 2 full run done and written up.
+**Last updated:** 2026-10-11, phase 3a (compact packages) measured; next step open.
 
 ## Resume prompt
 
@@ -30,15 +30,25 @@ corpus; the token budget ignores rendering overhead (bug).
 
 ## Next step: owner's choice
 
-Phase 2 is written up (benchmarks/README.md, "Phase 2 result"; ROADMAP.md,
-"Gate 2" and "Next"). Candidate next steps, in order of evidence:
+**Budget rule (owner, 2026-10-11): agent runs start tiny (~10 runs), scale only
+on a clear signal, and state run count and expected usage first.** The
+300-run phase 2 benchmark used a large share of the owner's weekly usage.
+Prefer Haiku, or Sonnet 5.5 with `--effort medium` for a few runs. Do
+retrieval work offline first (`ctxo eval-retrieval`, no model calls).
 
-- **Better retrieval recall**: the oracle saves ~60% of tokens, the service
-  ~20%. Ideas: let the agent decompose the task into several requests, better
-  follow-ups, a reranker. Measure on phase 1 first (cheap), then re-run B2.
-- **Robustness**: repeat phase 2 with Sonnet and/or a second corpus;
-  independent label/rubric check.
-- **Make it public**: repository is private; ask the owner before changing.
+Latest (benchmarks/README.md, "Phase 3a"): compact packages raised retrieval
+recall 0.61 -> 0.74 at the same size, but a 10-run Haiku check showed no agent
+benefit (fewer service calls, more file reads, same cost). Full packages stay
+the default.
+
+Candidate next steps:
+- **Free analysis of the 300 phase 2 runs**: which files did B2 agents still
+  read after calling the service, and were they the pieces retrieval missed?
+  That shows what actually drives cost, with no model calls.
+- **Better follow-up answers** from the service (an agent asking about a
+  named function gets it plus its tests and callers), then a ~10-run check.
+- Repository stays **private** until research, implementation and tests are
+  done; the owner will post about it then.
 
 Commands: `ctxo eval-agent ... --resume <run folder>` continues an interrupted
 run; `ctxo analyze-agent <run folder>` recomputes the paired analysis.
