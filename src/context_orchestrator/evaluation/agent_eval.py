@@ -150,8 +150,16 @@ def load_rubrics(path: Path, suite: TaskSuite) -> dict[str, Any]:
 
 
 def _sanitise(text: str, replacements: dict[str, str]) -> str:
+    """Replace local paths, the OS user name and session ids in stored output.
+
+    Paths appear plain, JSON-escaped and inside Claude Code's own folder names
+    (``C--Users-<name>-AppData-...``), so the user name is replaced on its own too.
+    """
     for old, new in replacements.items():
         text = text.replace(old, new).replace(old.replace("\\", "\\\\"), new)
+    user = Path.home().name
+    if len(user) >= 3:
+        text = re.sub(re.escape(user), "<user>", text, flags=re.IGNORECASE)
     return re.sub(r'"session_id":\s*"[^"]+"', '"session_id": "<session>"', text)
 
 

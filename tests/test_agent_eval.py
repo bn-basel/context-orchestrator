@@ -161,3 +161,17 @@ def test_run_agent_suite_with_a_fake_claude(tmp_path: Path) -> None:
     meta = json.loads((run_dir / "run.json").read_text("utf-8"))
     assert meta["claude_code_version"].startswith("2.1.292")
     assert "| A: full context |" in (run_dir / "summary.md").read_text("utf-8")
+
+
+def test_sanitise_removes_user_name_in_every_form(tmp_path: Path) -> None:
+    from context_orchestrator.evaluation.agent_eval import _sanitise
+
+    home = Path.home()
+    user = home.name
+    text = (
+        f'"cwd": "{str(home)}\\x", "memory": "C--Users-{user}-AppData-Local-Temp", '
+        f'"detail": "Reading ~\\AppData\\{user}", "session_id": "abc-123"'
+    )
+    clean = _sanitise(text, {str(home): "<home>"})
+    assert user.lower() not in clean.lower()
+    assert '"session_id": "<session>"' in clean

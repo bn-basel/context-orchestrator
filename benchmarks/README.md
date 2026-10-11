@@ -235,3 +235,41 @@ What was learned:
    tried. Phase 2's strategy B gives an agent the service as a tool it can call
    repeatedly, with its own judgement choosing the next request: the missing
    ingredient here. Whether that closes the gap is phase 2's question.
+
+## Phase 2 pilot: agent comparison (run `20261011T030237Z-hallpass-agent`)
+
+Claude Code 2.1.292, model Haiku 4.5 (`--model haiku`), 4 tasks (H01 bug fix,
+H12 cross-area, H15 superseded trap, H17 assumption trap) × 4 strategies × 1
+run. Identical prompt and read-only file tools (Read, Grep, Glob) for every
+strategy; B adds the `request_context` MCP tool (hybrid + 2 hops). Plans are
+graded by the regex rubrics in `tasks/hallpass.rubrics.json`, which were
+committed before the run. Raw streams were re-sanitised after the run (the OS
+user name appeared inside Claude Code's own folder names); the sanitiser now
+handles that.
+
+| Strategy | Mean score | Successes | Traps hit | Median input tokens (cache read share) | Median output | Median duration | API-equiv. cost, 4 runs |
+|---|---|---|---|---|---|---|---|
+| A full context | 0.80 | 1/4 | 1 | 1,605k (93%) | 3.4k | 55 s | $1.10 |
+| B context service | 0.90 | 2/4 | 0 | 236k (88%) | 4.8k | 58 s | $0.45 |
+| C file tools only | 0.70 | 1/4 | 0 | 366k (92%) | 4.5k | 77 s | $0.49 |
+| D oracle ranges | 0.75 | 1/4 | 0 | 164k (90%) | 3.7k | 47 s | $0.31 |
+
+Tokens and durations are measured by Claude Code; cost is its API-list-price
+estimate, **not** a subscription charge. Total: about $2.35 API-equivalent.
+
+**This pilot tests the pipeline. It does not answer the question.** One run
+per cell and four tasks are far too few, and the score differences are
+within noise. What it did show:
+
+1. **The pipeline works end to end:** isolation, MCP, stream parsing, usage,
+   grading and raw storage. All 16 runs completed.
+2. **B mostly didn't use the service.** The agent called `request_context`
+   in only 2 of 4 runs (once in H12, twice in H17). In H01 and H15 it explored
+   files exactly like C. B's scores can't be credited to the service yet.
+3. **Full context is expensive even with caching.** A's agents still made
+   5–17 file-tool calls, and every turn re-sent the ~140k-token corpus: a
+   median of 1.6M input tokens per run, 93% of them cache reads. That is 4–7×
+   the other strategies, and 2.5× the API-equivalent cost of B or C.
+4. **The oracle isn't a ceiling for plan quality.** D received exactly the
+   labelled ranges but scored below B. Knowing the facts is not the same as
+   writing them into the plan, and the regex rubric misses some paraphrases.
