@@ -33,7 +33,7 @@ corpus; the token budget ignores rendering overhead (bug).
 Keyword tweaks have stalled (see "Phase 1c log" in benchmarks/README.md).
 Plan, once the owner approves the download:
 
-1. Embedding model via the toolbox Ollama (`C:\WIP	ools\ollama\ollama.exe`,
+1. Embedding model via the toolbox Ollama (`C:\WIP\tools\ollama\ollama.exe`,
    no embedding model installed yet). Candidate: `nomic-embed-text`
    (Apache-2.0, ~274 MB). Called over Ollama's local HTTP API with `urllib`,
    so the core stays standard-library only; the feature is optional.
