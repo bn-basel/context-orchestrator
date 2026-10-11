@@ -62,30 +62,53 @@ class ContextOrchestrator:
         unresolved_kinds: list[str] = []
         omitted: list[OmittedItem] = []
         notes: list[str] = []
-        candidates_seen = 0
 
         if not terms:
             unresolved.append("The task contains no searchable terms; nothing was retrieved.")
 
         # 1. Retrieve per kind. Over-fetch so superseded items do not use up slots.
+        kinds = request.kinds or [None]
+        hits_by_kind = [
+            self.retriever.search(terms, kind, limit=request.per_kind_limit * 2) for kind in kinds
+        ]
+        candidates_seen = sum(len(h) for h in hits_by_kind)
+        # BM25 scores from one query are comparable across kinds (IDF is index-wide), so a
+        # kind whose best hit is far below the query's best hit has nothing really relevant.
+        best = max((h.score for hits in hits_by_kind for h in hits), default=0.0)
+        threshold = best * request.min_relative_score
+
         ranked_by_kind: list[list[ScoredChunk]] = []
-        for kind in request.kinds or [None]:
-            hits = self.retriever.search(terms, kind, limit=request.per_kind_limit * 2)
-            candidates_seen += len(hits)
+        for kind, hits in zip(kinds, hits_by_kind, strict=True):
             kept = []
+            weak = 0
             for hit in hits:
                 if hit.chunk.status is Status.SUPERSEDED and not request.include_superseded:
                     omitted.append(OmittedItem(hit.chunk.source, "superseded"))
+                elif hit.score < threshold:
+                    weak += 1
+                    omitted.append(
+                        OmittedItem(
+                            hit.chunk.source,
+                            f"weak match: score {hit.score:.2f} < {request.min_relative_score:g}"
+                            f" x best {best:.2f}",
+                        )
+                    )
                 else:
                     kept.append(hit)
             kept = kept[: request.per_kind_limit]
             if terms and not kept:
                 label = kind.value if kind else "project"
                 unresolved_kinds.append(kind.value if kind else "any")
-                unresolved.append(
-                    f"No {label} information matched the task terms. It may be missing from the "
-                    "knowledge base, or described with different vocabulary."
-                )
+                if weak:
+                    unresolved.append(
+                        f"No relevant {label} information found: only weak matches, far below "
+                        "the best match for this task. It may be missing from the knowledge base."
+                    )
+                else:
+                    unresolved.append(
+                        f"No {label} information matched the task terms. It may be missing from "
+                        "the knowledge base, or described with different vocabulary."
+                    )
             ranked_by_kind.append(kept)
 
         # 2. Select round-robin across kinds within the token budget. The budget covers the

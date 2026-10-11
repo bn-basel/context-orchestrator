@@ -12,6 +12,8 @@ from dataclasses import asdict, dataclass, field
 from enum import StrEnum
 from typing import Any
 
+DEFAULT_MIN_RELATIVE_SCORE = 0.0
+
 
 class InfoKind(StrEnum):
     """Categories of project knowledge an agent can ask for."""
@@ -108,6 +110,9 @@ class ContextRequest:
     agent_id: str = "anonymous"
     max_tokens: int = 4000
     per_kind_limit: int = 3
+    # Drop hits scoring below this fraction of the query's best hit (any kind). A requested
+    # kind left with only such weak hits is reported as unresolved. 0 disables the filter.
+    min_relative_score: float = DEFAULT_MIN_RELATIVE_SCORE
     include_superseded: bool = False
     request_id: str = field(default_factory=lambda: uuid.uuid4().hex)
 

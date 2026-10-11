@@ -131,3 +131,24 @@ def test_rendered_package_never_exceeds_the_budget(service: ContextService, budg
     package = service.request(ContextRequest(task=BUG12_TASK, max_tokens=budget))
     assert package.estimated_tokens.value <= budget
     assert sum(i.estimated_tokens for i in package.items) < budget
+
+
+def test_weak_matches_are_dropped_and_reported_as_unresolved(service: ContextService) -> None:
+    # "fine" appears in a known issue (strongly relevant) but only in passing in the SQLite
+    # ADR ("which is fine for a single desk"), so the decision kind has only weak matches.
+    request = ContextRequest(
+        task="BUG-12 days_overdue partial day charged full fine",
+        kinds=[InfoKind.KNOWN_ISSUE, InfoKind.DECISION],
+        min_relative_score=0.5,
+    )
+    package = service.request(request)
+    assert "decision" in package.unresolved_kinds
+    assert any("only weak matches" in u for u in package.unresolved)
+    assert any(o.reason.startswith("weak match") for o in package.omitted)
+    assert all(i.kind is InfoKind.KNOWN_ISSUE for i in package.items)
+
+
+def test_relative_score_zero_keeps_everything(service: ContextService) -> None:
+    base = dict(task=BUG12_TASK, kinds=[InfoKind.KNOWN_ISSUE, InfoKind.DECISION])
+    off = service.request(ContextRequest(**base, min_relative_score=0.0))
+    assert not any(o.reason.startswith("weak match") for o in off.omitted)

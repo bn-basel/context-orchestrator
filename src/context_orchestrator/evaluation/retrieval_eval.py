@@ -36,7 +36,13 @@ from typing import Any
 
 from context_orchestrator import __version__
 from context_orchestrator.agent_interface.api import ContextService
-from context_orchestrator.models import ContextRequest, InfoKind, SourceRef, Status
+from context_orchestrator.models import (
+    DEFAULT_MIN_RELATIVE_SCORE,
+    ContextRequest,
+    InfoKind,
+    SourceRef,
+    Status,
+)
 from context_orchestrator.telemetry.events import JsonlTelemetry
 from context_orchestrator.tokens import ESTIMATE_METHOD, estimate_tokens
 
@@ -89,6 +95,7 @@ class TaskSuite:
 class RetrievalConfig:
     max_tokens: int = 4000
     per_kind_limit: int = 3
+    min_relative_score: float = DEFAULT_MIN_RELATIVE_SCORE
 
 
 # -- loading and validation ------------------------------------------------------
@@ -202,6 +209,7 @@ def evaluate_task(service: ContextService, task: EvalTask, config: RetrievalConf
         agent_id=AGENT_ID,
         max_tokens=config.max_tokens,
         per_kind_limit=config.per_kind_limit,
+        min_relative_score=config.min_relative_score,
     )
     started = time.perf_counter()
     package = service.request(request)
@@ -435,7 +443,8 @@ def render_summary(run_meta: dict, results: list[dict]) -> str:
         f"- Run: `{run_meta['run_id']}`, commit `{(git['commit'] or 'unknown')[:10]}`"
         + (" (uncommitted changes present)" if git["dirty"] else ""),
         f"- Config: max_tokens={run_meta['config']['max_tokens']}, "
-        f"per_kind_limit={run_meta['config']['per_kind_limit']}",
+        f"per_kind_limit={run_meta['config']['per_kind_limit']}, "
+        f"min_relative_score={run_meta['config'].get('min_relative_score', 0.0)}",
         f"- Corpus: {run_meta['corpus']['files']} files, {run_meta['corpus']['chunks']} chunks, "
         f"~{run_meta['corpus']['estimated_tokens']} tokens (estimated)",
         "",
