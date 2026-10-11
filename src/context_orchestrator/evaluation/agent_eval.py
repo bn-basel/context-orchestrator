@@ -23,12 +23,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+import random
 import re
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -38,10 +41,12 @@ from context_orchestrator.evaluation.claude_cli import parse_claude_cli_result
 from context_orchestrator.evaluation.retrieval_eval import EvalTask, TaskSuite, _git_state
 from context_orchestrator.memory.loader import discover_files
 
-STRATEGIES = ("A", "B", "C", "D")
+STRATEGIES = ("A", "B", "B2", "C", "D")
+SERVICE_STRATEGIES = ("B", "B2")
 STRATEGY_NAMES = {
     "A": "full context",
-    "B": "context service (MCP tool)",
+    "B": "context service offered (MCP tool)",
+    "B2": "context service, told to use it first",
     "C": "no context (file tools only)",
     "D": "oracle (labelled ranges only)",
 }
@@ -74,6 +79,13 @@ class AgentConfig:
     timeout_s: int = 900
     max_budget_usd: float = 3.0  # per run, API-equivalent; a runaway brake, not a target
     service_args: tuple[str, ...] = ("--retrieval", "hybrid", "--hops", "2")
+    workers: int = 1  # parallel claude -p sessions
+    seed: int = 20261011  # run order is shuffled with this seed
+
+
+SYSTEM_B2 = SYSTEM_B + (
+    " Start by calling request_context with the task before you read any files."
+)
 
 
 # -- context for each strategy -----------------------------------------------------------
@@ -194,7 +206,7 @@ def parse_stream(lines: list[str]) -> dict[str, Any]:
 def build_command(
     config: AgentConfig, strategy: str, prompt: str, system_file: Path | None, mcp_file: Path | None
 ) -> list[str]:
-    tools = list(FILE_TOOLS) + ([MCP_TOOL] if strategy == "B" else [])
+    tools = list(FILE_TOOLS) + ([MCP_TOOL] if strategy in SERVICE_STRATEGIES else [])
     cmd = [
         "claude", "-p", prompt,
         "--model", config.model,
@@ -224,51 +236,106 @@ def run_agent_suite(
     task_ids: list[str] | None = None,
     runner: Callable[..., subprocess.CompletedProcess] = subprocess.run,
     ctxo_command: str | None = None,
+    resume: Path | None = None,
 ) -> Path:
-    """Run every (task, strategy, repetition) and write raw and summarised results."""
-    config = config or AgentConfig()
+    """Run every (task, strategy, repetition) and write raw and summarised results.
+
+    Each finished run is appended to ``runs.jsonl`` at once. With ``resume`` (an
+    earlier run folder) the stored configuration is reused and only runs that
+    are missing or ended in an error are repeated, so a usage limit or a crash
+    costs nothing that already finished.
+    """
+    if resume is not None:
+        run_dir = Path(resume)
+        meta = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+        stored = dict(meta["config"])
+        stored["strategies"] = tuple(stored["strategies"])
+        stored["service_args"] = tuple(stored["service_args"])
+        config = AgentConfig(**stored)
+        task_ids = meta["tasks"]
+        run_id = meta["run_id"]
+    else:
+        config = config or AgentConfig()
+        run_id = f"{datetime.now(UTC):%Y%m%dT%H%M%SZ}-{suite.name}-agent"
+        run_dir = Path(out_dir) / run_id
+        (run_dir / "raw").mkdir(parents=True)
+        meta = {}
     rubric_data = load_rubrics(rubrics_path, suite)
     tasks = [t for t in suite.tasks if not task_ids or t.id in task_ids]
-    git_state = _git_state(suite.path.resolve().parent)
-    started_at = datetime.now(UTC)
-    run_id = f"{started_at:%Y%m%dT%H%M%SZ}-{suite.name}-agent"
-    run_dir = Path(out_dir) / run_id
-    (run_dir / "raw").mkdir(parents=True)
+    if not meta:
+        meta = {
+            "schema_version": 1,
+            "run_id": run_id,
+            "started_at": datetime.now(UTC).isoformat(timespec="seconds"),
+            "git": _git_state(suite.path.resolve().parent),
+            "claude_code_version": _claude_version(runner),
+            "config": asdict(config),
+            "suite": {"name": suite.name, "sha256": suite.sha256},
+            "rubrics_sha256": hashlib.sha256(rubrics_path.read_bytes()).hexdigest(),
+            "tasks": [t.id for t in tasks],
+            "prompt_template": PROMPT,
+            "system_prompts": {"B": SYSTEM_B, "B2": SYSTEM_B2},
+            "summary": None,
+        }
+        _write_meta(run_dir, meta)
 
-    # One read-only copy of the project for every run; service state is shared and warmed.
+    # One read-only copy of the project shared by every run.
     ws = work_dir / run_id
     project = ws / "project"
-    shutil.copytree(suite.project, project)
+    if not project.exists():
+        shutil.copytree(suite.project, project)
     ctxo = ctxo_command or shutil.which("ctxo") or str(Path(sys.executable).with_name("ctxo"))
-    mcp_file = ws / "mcp.json"
-    mcp_file.write_text(json.dumps({"mcpServers": {"ctxo": {
-        "command": ctxo,
-        "args": ["mcp", str(project), "--state-dir", str(ws / "state"), *config.service_args],
-    }}}), encoding="utf-8")  # fmt: skip
     full_file = ws / "full_context.md"
     full_file.write_text(full_context(project), encoding="utf-8")
+    meta["full_context_chars"] = len(full_file.read_text(encoding="utf-8"))
+    mcp_file = ws / "mcp.json"
+    if any(s in SERVICE_STRATEGIES for s in config.strategies):
+        _prepare_service(runner, ctxo, project, ws / "state", config.service_args)
+    server = {
+        "command": ctxo,
+        "args": [
+            "mcp", str(project), "--state-dir", str(ws / "state"), "--skip-ingest",
+            *config.service_args,
+        ],
+    }  # fmt: skip
+    mcp_file.write_text(json.dumps({"mcpServers": {"ctxo": server}}), encoding="utf-8")
+    for name, text in (("system_b.md", SYSTEM_B), ("system_b2.md", SYSTEM_B2)):
+        (ws / name).write_text(text, encoding="utf-8")
+    for task in tasks:
+        (ws / f"oracle_{task.id}.md").write_text(oracle_context(project, task), encoding="utf-8")
     replacements = {str(ws): "<workspace>", str(Path.home()): "<home>"}
 
-    records = []
+    records_path = run_dir / "runs.jsonl"
+    done = {
+        (r["task_id"], r["strategy"], r["repetition"])
+        for r in _read_records(records_path)
+        if not r["error"]
+    }
     order = [(t, s, r) for r in range(config.repetitions) for t in tasks for s in config.strategies]
-    for task, strategy, rep in order:
-        system_file = None
-        if strategy == "A":
-            system_file = full_file
-        elif strategy == "B":
-            system_file = ws / "system_b.md"
-            system_file.write_text(SYSTEM_B, encoding="utf-8")
-        elif strategy == "D":
-            system_file = ws / f"oracle_{task.id}.md"
-            system_file.write_text(oracle_context(project, task), encoding="utf-8")
-        prompt = PROMPT.format(task=task.task)
-        cmd = build_command(
-            config, strategy, prompt, system_file, mcp_file if strategy == "B" else None
-        )
+    random.Random(config.seed).shuffle(order)
+    todo = [(t, s, r) for t, s, r in order if (t.id, s, r) not in done]
+    lock = threading.Lock()
+    progress = {"done": len(order) - len(todo)}
+
+    def run_one(item: tuple[EvalTask, str, int]) -> None:
+        task, strategy, rep = item
+        system_file = {
+            "A": full_file,
+            "B": ws / "system_b.md",
+            "B2": ws / "system_b2.md",
+            "D": ws / f"oracle_{task.id}.md",
+        }.get(strategy)
+        mcp = mcp_file if strategy in SERVICE_STRATEGIES else None
+        cmd = build_command(config, strategy, PROMPT.format(task=task.task), system_file, mcp)
         t0 = time.perf_counter()
         try:
-            proc = runner(cmd, cwd=project, stdin=subprocess.DEVNULL, capture_output=True,
-                          timeout=config.timeout_s)  # fmt: skip
+            proc = runner(
+                cmd,
+                cwd=project,
+                stdin=subprocess.DEVNULL,
+                capture_output=True,
+                timeout=config.timeout_s,
+            )
             stdout = proc.stdout.decode("utf-8", "replace")
             stderr = proc.stderr.decode("utf-8", "replace")
             exit_code: int | None = proc.returncode
@@ -276,22 +343,24 @@ def run_agent_suite(
             stdout = (exc.stdout or b"").decode("utf-8", "replace")
             stderr, exit_code = "timeout", None
         wall_ms = round((time.perf_counter() - t0) * 1000)
-
         name = f"{task.id}-{strategy}-{rep}"
         (run_dir / "raw" / f"{name}.jsonl").write_text(
             _sanitise(stdout, replacements), encoding="utf-8", newline="\n"
         )
         parsed = parse_stream(stdout.splitlines())
         usage = parse_claude_cli_result(parsed["result"] or {})
+        failed = bool(exit_code != 0 or not parsed["result"] or parsed["result"].get("is_error"))
+        error = None
+        if failed:
+            error = _sanitise((stderr or parsed["plan"])[-500:] or "failed", replacements)
         record = {
             "task_id": task.id,
             "category": task.category,
             "strategy": strategy,
             "repetition": rep,
             "exit_code": exit_code,
-            "error": None
-            if exit_code == 0 and parsed["result"]
-            else _sanitise(stderr[-500:], replacements),
+            "error": error,
+            "finished_at": datetime.now(UTC).isoformat(timespec="seconds"),
             "wall_ms": {
                 "value": wall_ms,
                 "kind": "measured",
@@ -305,37 +374,66 @@ def run_agent_suite(
             "grade": grade(parsed["plan"], rubric_data["rubrics"][task.id]),
             "plan": _sanitise(parsed["plan"], replacements),
         }
-        records.append(record)
-        print(f"{name}: score {record['grade']['score']}, "
-              f"input {record['usage']['total_input_tokens']['value']}, "
-              f"tools {len(record['tool_calls'])}", file=sys.stderr, flush=True)  # fmt: skip
+        with lock:
+            with records_path.open("a", encoding="utf-8", newline="\n") as fh:
+                fh.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
+            progress["done"] += 1
+            print(
+                f"[{progress['done']}/{len(order)}] {name}: "
+                f"{'ERROR ' if failed else ''}score {record['grade']['score']}, "
+                f"input {record['usage']['total_input_tokens']['value']}, "
+                f"tools {len(record['tool_calls'])}",
+                file=sys.stderr,
+                flush=True,
+            )
 
-    with (run_dir / "runs.jsonl").open("w", encoding="utf-8", newline="\n") as fh:
-        for record in records:
-            fh.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
-    meta = {
-        "schema_version": 1,
-        "run_id": run_id,
-        "started_at": started_at.isoformat(timespec="seconds"),
-        "finished_at": datetime.now(UTC).isoformat(timespec="seconds"),
-        "git": git_state,
-        "claude_code_version": _claude_version(runner),
-        "config": asdict(config),
-        "suite": {"name": suite.name, "sha256": suite.sha256},
-        "rubrics_sha256": hashlib.sha256(rubrics_path.read_bytes()).hexdigest(),
-        "tasks": [t.id for t in tasks],
-        "prompt_template": PROMPT,
-        "system_b": SYSTEM_B,
-        "full_context_chars": len(full_file.read_text(encoding="utf-8")),
-        "summary": summarize_agent_runs(records),
-    }
-    (run_dir / "run.json").write_text(
-        json.dumps(meta, indent=2, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n"
-    )
+    with ThreadPoolExecutor(max_workers=max(1, config.workers)) as pool:
+        list(pool.map(run_one, todo))
+
+    records = _latest_records(_read_records(records_path))
+    meta["finished_at"] = datetime.now(UTC).isoformat(timespec="seconds")
+    meta["summary"] = summarize_agent_runs(records)
+    _write_meta(run_dir, meta)
     (run_dir / "summary.md").write_text(
         render_agent_summary(meta, records), encoding="utf-8", newline="\n"
     )
     return run_dir
+
+
+def _write_meta(run_dir: Path, meta: dict[str, Any]) -> None:
+    (run_dir / "run.json").write_text(
+        json.dumps(meta, indent=2, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n"
+    )
+
+
+def _read_records(path: Path) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
+
+
+def _latest_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The last attempt per (task, strategy, repetition); earlier failed attempts stay on disk."""
+    latest: dict[tuple, dict[str, Any]] = {}
+    for r in records:
+        latest[(r["task_id"], r["strategy"], r["repetition"])] = r
+    return sorted(latest.values(), key=lambda r: (r["task_id"], r["strategy"], r["repetition"]))
+
+
+def _prepare_service(
+    runner: Callable[..., Any], ctxo: str, project: Path, state: Path, service_args: tuple[str, ...]
+) -> None:
+    """Build the service's index (and embeddings) once, before parallel runs share it."""
+    keep = {"--retrieval", "--embed-model", "--ollama-url"}
+    args = list(service_args)
+    ingest_args = [x for i, x in enumerate(args) if x in keep or (i and args[i - 1] in keep)]
+    cmd = [ctxo, "ingest", str(project), "--state-dir", str(state), *ingest_args]
+    proc = runner(cmd, capture_output=True, timeout=1800)
+    if proc.returncode != 0:
+        raise RuntimeError(
+            "preparing the context service failed (is Ollama running for hybrid retrieval?): "
+            + proc.stderr.decode("utf-8", "replace")[-500:]
+        )
 
 
 def _usage_fields(usage: Any) -> dict[str, Any]:

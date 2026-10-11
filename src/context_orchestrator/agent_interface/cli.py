@@ -58,6 +58,11 @@ def _build_parser() -> argparse.ArgumentParser:
     mcp.add_argument("--max-tokens", type=int, default=4000)
     mcp.add_argument("--per-kind-limit", type=int, default=3)
     mcp.add_argument("--hops", type=int, choices=[1, 2], default=DEFAULT_HOPS)
+    mcp.add_argument(
+        "--skip-ingest",
+        action="store_true",
+        help="serve the existing knowledge base without refreshing it",
+    )
 
     ingest = sub.add_parser("ingest", help="load or refresh the project knowledge base")
     common(ingest)
@@ -95,6 +100,11 @@ def _build_parser() -> argparse.ArgumentParser:
     ag.add_argument("--model", default="haiku")
     ag.add_argument("--reps", type=int, default=1)
     ag.add_argument("--max-budget-usd", type=float, default=3.0)
+    ag.add_argument("--workers", type=int, default=1, help="parallel claude sessions")
+    ag.add_argument("--seed", type=int, default=20261011, help="run-order shuffle seed")
+    ag.add_argument(
+        "--resume", type=Path, help="continue an earlier run folder (reuses its stored settings)"
+    )
     ag.add_argument(
         "--service-args",
         default="--retrieval hybrid --hops 2",
@@ -179,12 +189,15 @@ def main(argv: list[str] | None = None) -> int:
                 repetitions=args.reps,
                 max_budget_usd=args.max_budget_usd,
                 service_args=tuple(args.service_args.split()),
+                workers=args.workers,
+                seed=args.seed,
             )
             run_dir = run_agent_suite(
                 load_suite(args.suite), args.rubrics, args.out, args.work_dir, config,
                 task_ids=args.tasks.split(",") if args.tasks else None,
+                resume=args.resume,
             )  # fmt: skip
-        except (ValueError, OSError) as exc:
+        except (ValueError, OSError, RuntimeError) as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 1
         print((run_dir / "summary.md").read_text(encoding="utf-8"))
@@ -211,10 +224,9 @@ def main(argv: list[str] | None = None) -> int:
             with ContextService(
                 args.project, args.state_dir, retrieval=args.retrieval, embedder=_embedder(args)
             ) as svc:
-                report = svc.ingest()
-                logging.getLogger(__name__).info(
-                    "mcp: %d chunks ready", report.chunks_written + len(report.unchanged)
-                )
+                if not args.skip_ingest:
+                    svc.ingest()
+                logging.getLogger(__name__).info("mcp: %d chunks ready", svc.store.count_chunks())
                 config = ServerConfig(args.max_tokens, args.per_kind_limit, args.hops)
                 run_stdio(McpServer(svc, config))
             return 0

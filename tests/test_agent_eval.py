@@ -131,6 +131,8 @@ def test_run_agent_suite_with_a_fake_claude(tmp_path: Path) -> None:
         calls.append((cmd, kwargs.get("cwd")))
         if cmd[:2] == ["claude", "--version"]:
             return subprocess.CompletedProcess(cmd, 0, b"2.1.292 (Claude Code)\n", b"")
+        if cmd[1] == "ingest":
+            return subprocess.CompletedProcess(cmd, 0, b"{}", b"")
         strategy_b = "--mcp-config" in cmd
         plan = f"Change days_overdue in {kwargs['cwd']}; UTC."
         out = _stream(plan, [MCP_TOOL] if strategy_b else ["Read"], usage=not strategy_b)
@@ -175,3 +177,56 @@ def test_sanitise_removes_user_name_in_every_form(tmp_path: Path) -> None:
     clean = _sanitise(text, {str(home): "<home>"})
     assert user.lower() not in clean.lower()
     assert '"session_id": "<session>"' in clean
+
+
+def _fake_claude(fail: set[str] | None = None, calls: list | None = None):
+    fail = fail or set()
+
+    def runner(cmd, **kwargs):
+        if calls is not None:
+            calls.append(cmd)
+        if cmd[:2] == ["claude", "--version"]:
+            return subprocess.CompletedProcess(cmd, 0, b"2.1.292 (Claude Code)", b"")
+        if cmd[1] == "ingest":
+            return subprocess.CompletedProcess(cmd, 0, b"{}", b"")
+        prompt = cmd[2]
+        if any(f in prompt for f in fail):
+            return subprocess.CompletedProcess(cmd, 1, b"", b"usage limit reached")
+        tools = [MCP_TOOL] if "--mcp-config" in cmd else ["Read"]
+        return subprocess.CompletedProcess(cmd, 0, _stream("days_overdue UTC", tools).encode(), b"")
+
+    return runner
+
+
+def test_b2_resume_and_parallel(tmp_path: Path) -> None:
+    suite = load_suite(SUITE)
+    rubrics = tmp_path / "rubrics.json"
+    rubrics.write_text(json.dumps({"rubrics": {t.id: RUBRIC for t in suite.tasks}}), "utf-8")
+    t02 = next(t for t in suite.tasks if t.id == "T02").task
+    calls: list = []
+    config = AgentConfig(strategies=("B", "B2", "C"), repetitions=2, workers=3)
+    run_dir = run_agent_suite(
+        suite, rubrics, tmp_path / "out", tmp_path / "work", config, task_ids=["T01", "T02"],
+        runner=_fake_claude(fail={t02}, calls=calls), ctxo_command="ctxo",
+    )  # fmt: skip
+    lines = (run_dir / "runs.jsonl").read_text("utf-8").splitlines()
+    assert len(lines) == 12
+    errors = [json.loads(x) for x in lines if json.loads(x)["error"]]
+    assert len(errors) == 6 and all(e["task_id"] == "T02" for e in errors)
+    b2 = [c for c in calls if c[1] == "-p" and any("system_b2.md" in x for x in c)]
+    assert b2 and all("--mcp-config" in c for c in b2)
+    mcp = json.loads((tmp_path / "work" / run_dir.name / "mcp.json").read_text("utf-8"))
+    assert "--skip-ingest" in mcp["mcpServers"]["ctxo"]["args"]
+
+    # Resume: only the six failed runs are repeated; stored settings are reused.
+    calls.clear()
+    run_agent_suite(
+        suite, rubrics, tmp_path / "out", tmp_path / "work", resume=run_dir,
+        runner=_fake_claude(calls=calls), ctxo_command="ctxo",
+    )  # fmt: skip
+    assert sum(1 for c in calls if c[1] == "-p") == 6
+    lines = (run_dir / "runs.jsonl").read_text("utf-8").splitlines()
+    assert len(lines) == 18  # failed attempts stay on disk
+    summary = json.loads((run_dir / "run.json").read_text("utf-8"))["summary"]
+    assert {k: v["runs"] for k, v in summary.items()} == {"B": 4, "B2": 4, "C": 4}
+    assert all(v["failed_runs"] == 0 for v in summary.values())
