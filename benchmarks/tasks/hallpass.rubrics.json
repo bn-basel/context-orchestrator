@@ -1,0 +1,1007 @@
+{
+  "schema_version": 1,
+  "suite": "hallpass",
+  "description": "Rubrics written by the Claude subagent that wrote the Hallpass tasks, derived by hand from its own labels; every regex was self-checked against the example plans.",
+  "rubrics": {
+    "H01": {
+      "checks": [
+        {
+          "id": "cause",
+          "description": "names the cause: later occurrences are computed by adding weeks in UTC",
+          "any_of": [
+            "(add|step|arithmetic|plus)\\w*.{0,60}\\butc\\b",
+            "\\butc\\b.{0,60}(week|timedelta|arithmetic|step)"
+          ]
+        },
+        {
+          "id": "function",
+          "description": "names recurring.occurrence_windows as the function to change",
+          "any_of": [
+            "occurrence_windows"
+          ]
+        },
+        {
+          "id": "local_fix",
+          "description": "fix steps local dates and converts each occurrence via core.tz",
+          "any_of": [
+            "local[\\s_-]*(date|wall[\\s-]*clock)",
+            "local_to_utc"
+          ]
+        },
+        {
+          "id": "extend_risk",
+          "description": "flags extend_series / already-materialised series as a risk",
+          "any_of": [
+            "extend_series",
+            "already[\\s-]+materiali[sz]ed",
+            "existing\\s+series"
+          ]
+        },
+        {
+          "id": "tests",
+          "description": "mentions the strict xfail / pinned HP-503 tests that flip",
+          "any_of": [
+            "xfail",
+            "test_hp503",
+            "pinned\\s+test"
+          ]
+        }
+      ],
+      "must_not": [],
+      "example_pass": "Root cause (HP-503): recurring.occurrence_windows converts the first occurrence with local_to_utc, then adds n weeks in UTC, so after a clock change every later occurrence is an hour off. Fix: step the local date by every_n_weeks and convert each occurrence separately with core.tz.local_to_utc, following the rule in time-and-dst.md (that doc is marked as an assumption, but this rule matches the code). Risks: extend_series reuses the same function from the original first date, so extending a series that was materialised the old way would produce rows that don't line up; limit the change to new series or treat extend separately, since ADR 0013 is only proposed. Tests: the strict xfails in test_recurring.py for October and March will XPASS and test_hp503_current_behaviour_is_pinned will fail; remove the xfail markers and the pinned test together, and add cases for 26 Oct 2025 and 29 Mar 2026.",
+      "example_fail": "Change the block booking code so that session times are stored correctly after the clocks change. Add a database column for the start time, update the booking screen to show it, and write some tests for the new behaviour. Tell Sue she no longer needs to split the seasons once this is deployed."
+    },
+    "H02": {
+      "checks": [
+        {
+          "id": "functions",
+          "description": "names _next_candidate / promote_for_slot in waitlist.py",
+          "any_of": [
+            "_next_candidate",
+            "promote_for_slot"
+          ]
+        },
+        {
+          "id": "locking",
+          "description": "adds row locking (FOR UPDATE SKIP LOCKED) or an advisory lock per space",
+          "any_of": [
+            "skip\\s+locked",
+            "for\\s+update",
+            "advisory[\\s_]+lock"
+          ]
+        },
+        {
+          "id": "order",
+          "description": "places the hold first and queues the offer only after it succeeds",
+          "any_of": [
+            "hold\\s+(first|before)",
+            "(queue|enqueue|send)\\w*\\s+(the\\s+)?(offer|message)\\w*\\s+(only\\s+)?after",
+            "after\\s+(the\\s+)?hold\\s+(succeeds|is\\s+placed)"
+          ]
+        },
+        {
+          "id": "two_paths",
+          "description": "identifies the two promotion paths (inline cancel and sweep_waitlist job)",
+          "any_of": [
+            "sweep_waitlist",
+            "inline\\s+(path|promotion)"
+          ]
+        },
+        {
+          "id": "issue_test",
+          "description": "references HP-541 or its reproduction test",
+          "any_of": [
+            "HP-?541",
+            "test_concurrent_promotion"
+          ]
+        }
+      ],
+      "must_not": [],
+      "example_pass": "This is HP-541. Two promoters run for the same freed slot: the inline path in lifecycle.cancel and the sweep_waitlist job every 5 minutes. In waitlist.py, _next_candidate does a plain SELECT, and promote_for_slot marks the entry offered and enqueues the offer before calling place_hold, so a losing promoter has already queued a message and then resets the entry. Plan: take core.db.advisory_lock on space_id at the top of promote_for_slot, change _next_candidate to SELECT ... FOR UPDATE SKIP LOCKED, and place the hold first, queueing the offer only after the hold succeeds and offer_booking_id is set. Optionally drop the inline path (Leisure Services accepted 5 minutes' latency). Risk: lock scope inside the cancel transaction. Turn test_concurrent_promotion into a runnable test.",
+      "example_fail": "Add a check so a resident can't receive the same notification twice, by looking in the outbox for an existing message before sending another one. Also improve the wording of the offer email so people understand checkout might fail, and add logging so we can see when it happens again."
+    },
+    "H03": {
+      "checks": [
+        {
+          "id": "function",
+          "description": "names extend_series as the function to fix",
+          "any_of": [
+            "extend_series"
+          ]
+        },
+        {
+          "id": "cause",
+          "description": "identifies book_on_account (org-only) being called with organisation_id NULL",
+          "any_of": [
+            "book_on_account"
+          ]
+        },
+        {
+          "id": "reuse",
+          "description": "reuses the resident path from create_series (_staff_resident_occurrence)",
+          "any_of": [
+            "_staff_resident_occurrence"
+          ]
+        },
+        {
+          "id": "dst_caveat",
+          "description": "notes extend still inherits the HP-503 clock-change problem",
+          "any_of": [
+            "HP-?503",
+            "clock\\s+change",
+            "\\bDST\\b"
+          ]
+        },
+        {
+          "id": "doc",
+          "description": "updates the block-booking how-to that tells staff Extend doesn't work",
+          "any_of": [
+            "how-to-block-bookings",
+            "how[\\s-]*to\\b.{0,40}(doc|guide|page)"
+          ]
+        }
+      ],
+      "must_not": [],
+      "example_pass": "HP-622: recurring.extend_series always calls lifecycle.book_on_account with the series' organisation_id, and book_on_account is for organisations only, so a resident series (organisation_id NULL) blows up with a 500. Fix: in extend_series, branch the same way create_series does: organisation series keep book_on_account, resident series use _staff_resident_occurrence (quote_price with the resident, confirmed, paid at desk), passing series_id and staff_id. Keep catching BookingConflict per occurrence and updating last_date. Risk: extend still computes from the original first date, so it inherits HP-503 across a clock change; staff should keep creating a new series in that case. Add a DB test for extending a resident series, and update the Extend note in how-to-block-bookings.md once fixed.",
+      "example_fail": "Wrap the Extend endpoint in a try/except so it returns a friendly error message instead of a 500, and log the exception. Then ask the bookings officer to re-create the piano lesson block as a new series each term."
+    },
+    "H04": {
+      "checks": [
+        {
+          "id": "location",
+          "description": "points at the blackout query in the usage report",
+          "any_of": [
+            "_BLACKOUT_SQL",
+            "usage\\.py",
+            "space_utilisation"
+          ]
+        },
+        {
+          "id": "filter",
+          "description": "filters out withdrawn closures with withdrawn_at IS NULL",
+          "any_of": [
+            "withdrawn_at"
+          ]
+        },
+        {
+          "id": "why",
+          "description": "explains withdrawing sets withdrawn_at rather than deleting the row",
+          "any_of": [
+            "withdraw_blackout",
+            "(not|never|isn'?t)\\s+delet",
+            "soft[\\s-]*(delete|remov)"
+          ]
+        },
+        {
+          "id": "consistency",
+          "description": "aligns with availability / day sheet queries that already exclude withdrawn closures",
+          "any_of": [
+            "_BUSY_SQL",
+            "availability",
+            "day_sheet"
+          ]
+        }
+      ],
+      "must_not": [],
+      "example_pass": "Cause: reports/usage.py _BLACKOUT_SQL sums every blackout_periods row overlapping the range, including withdrawn ones. Since migration 0010, withdraw_blackout sets withdrawn_at and withdrawn_by_staff_id instead of deleting the row, so a withdrawn closure still reduces available hours in space_utilisation and inflates utilisation. Fix: add AND bp.withdrawn_at IS NULL to _BLACKOUT_SQL, matching _BUSY_SQL in availability and the day sheet query. Add a test with a withdrawn closure. Risk: previously exported reports change when re-run; tell the service manager. Also note the existing TODO that blackout hours outside opening hours are still subtracted.",
+      "example_fail": "The usage report numbers look wrong, so recalculate utilisation using booked hours divided by opening hours and remove closures from the calculation entirely. Add a note to the report explaining the figures, and export a corrected CSV for the service manager."
+    },
+    "H05": {
+      "checks": [
+        {
+          "id": "function",
+          "description": "names refunds.refund_preview",
+          "any_of": [
+            "refund_preview"
+          ]
+        },
+        {
+          "id": "flag",
+          "description": "reads the refund_policy_v2 flag via flags.is_enabled",
+          "any_of": [
+            "refund_policy_v2",
+            "is_enabled"
+          ]
+        },
+        {
+          "id": "shared",
+          "description": "uses the same decide/use_v2 logic as refund_requested",
+          "any_of": [
+            "refund_requested",
+            "use_v2"
+          ]
+        },
+        {
+          "id": "tests",
+          "description": "adds tests for the preview with the flag off",
+          "any_of": [
+            "test_refunds",
+            "monkeypatch",
+            "test.{0,80}flag"
+          ]
+        }
+      ],
+      "must_not": [],
+      "example_pass": "refunds.refund_preview hard-codes use_v2=True, while refund_requested passes use_v2=flags.is_enabled('refund_policy_v2') into decide. Change refund_preview to read the same flag (or pull a small helper both call) so the cancel page shown by the refund-preview endpoint in api/bookings.py matches the refund actually created. Keep decide pure. Tests: add cases in test_refunds.py with is_enabled monkeypatched to False, checking that the preview gives the v1 tiers. Risk: the flag is cached for 60 seconds per process, so preview and refund can briefly disagree right after a flip. Also note invoices.build_lines calls decide without the flag.",
+      "example_fail": "Update the cancel page so it shows the old and the new refund policy side by side, and add a note telling residents that Finance may change the policy. Make sure the email wording matches the page."
+    },
+    "H06": {
+      "checks": [
+        {
+          "id": "hook",
+          "description": "enqueues from organisations.add_member",
+          "any_of": [
+            "add_member"
+          ]
+        },
+        {
+          "id": "outbox",
+          "description": "uses the outbox (enqueue in the same transaction, ADR 0008)",
+          "any_of": [
+            "enqueue",
+            "outbox",
+            "ADR\\s*0?008"
+          ]
+        },
+        {
+          "id": "template",
+          "description": "adds template file and SUBJECTS entry",
+          "any_of": [
+            "SUBJECTS",
+            "\\.email\\.txt",
+            "templates\\.py"
+          ]
+        },
+        {
+          "id": "recipient",
+          "description": "keys the message on resident_id (existing _LOOKUPS entry in recipients.py)",
+          "any_of": [
+            "resident_id",
+            "_LOOKUPS",
+            "recipients\\.py"
+          ]
+        },
+        {
+          "id": "channel",
+          "description": "email only, no SMS",
+          "any_of": [
+            "email\\s+only",
+            "no\\s+sms",
+            "not\\s+(by\\s+)?(sms|text)"
+          ]
+        }
+      ],
+      "must_not": [],
+      "example_pass": "Known issue 9: organisations.add_member is silent and the org_member_added template was never written. Plan: add SUBJECTS['org_member_added'] in notifications/templates.py and an org_member_added.email.txt with placeholders like first_name and the organisation name passed via context (every placeholder must be in the context or the send fails permanently). In add_member, after the INSERT, call outbox.enqueue(conn, template='org_member_added', resident_id=person['id'], context={...}) in the same transaction, as ADR 0008 requires; never call a sender. recipients.py already resolves resident_id through _LOOKUPS. Email only, no SMS. Risk: re-adding an existing member (ON CONFLICT updates the role) would send again, so only enqueue for a new membership.",
+      "example_fail": "When a member is added, send them a welcome message straight away using the SMTP sender and also a text message, so they definitely see it. Put the message text in the API handler for adding members."
+    },
+    "H07": {
+      "checks": [
+        {
+          "id": "adr",
+          "description": "applies ADR 0014 (flags in the feature_flags table)",
+          "any_of": [
+            "ADR\\s*0?014",
+            "feature_flags"
+          ]
+        },
+        {
+          "id": "migration",
+          "description": "adds the flag row by migration, default off",
+          "any_of": [
+            "migration.{0,120}(false|default\\s+off|off\\s+by\\s+default)",
+            "(false|default\\s+off|off\\s+by\\s+default).{0,120}migration"
+          ]
+        },
+        {
+          "id": "read",
+          "description": "reads it with core.flags.is_enabled",
+          "any_of": [
+            "is_enabled"
+          ]
+        },
+        {
+          "id": "who",
+          "description": "superusers flip it and each flip is audited",
+          "any_of": [
+            "superuser",
+            "audit"
+          ]
+        },
+        {
+          "id": "cache",
+          "description": "notes the 60-second per-process cache delay",
+          "any_of": [
+            "60\\s*s",
+            "60[\\s-]*second",
+            "up\\s+to\\s+a\\s+minute",
+            "cache"
+          ]
+        }
+      ],
+      "must_not": [],
+      "example_pass": "Per ADR 0014 and the conventions, add a boolean row to feature_flags: new migration NNNN_payments_paused_banner.sql inserting ('payments_paused_banner', false, description), so it ships default off. Expose it to the booking pages through an endpoint or page context that calls flags.is_enabled('payments_paused_banner'); the frontend shows the banner when true. Flipping uses the existing PUT /api/staff/flags/<key>, which is superuser-only and writes an audit_log row via set_flag. Risks: flags are cached per web process for 60 seconds, so the banner takes up to a minute to appear; contact centre staff can't flip it themselves. Update the Paybridge outage runbook step that names this flag.",
+      "example_fail": "Add an environment variable PAYMENTS_PAUSED that shows a banner on the booking pages when set, and tell the duty team how to set it on the servers when Paybridge is down."
+    },
+    "H08": {
+      "checks": [
+        {
+          "id": "adr",
+          "description": "cites ADR 0014: flags are booleans, not a config store for numbers",
+          "any_of": [
+            "ADR\\s*0?014",
+            "not\\s+a\\s+config",
+            "(no|not|never)\\s+numbers"
+          ]
+        },
+        {
+          "id": "prior_decision",
+          "description": "knows the 2024 holds meeting chose the HALLPASS_HOLD_MINUTES env var",
+          "any_of": [
+            "HALLPASS_HOLD_MINUTES",
+            "env(ironment)?\\s+var"
+          ]
+        },
+        {
+          "id": "code",
+          "description": "names where the hold length is read (hold_ttl / settings.hold_minutes)",
+          "any_of": [
+            "hold_ttl",
+            "hold_minutes"
+          ]
+        },
+        {
+          "id": "scope",
+          "description": "notes it only affects new holds or the checkout session expiry",
+          "any_of": [
+            "new\\s+holds",
+            "start_checkout",
+            "expires_in"
+          ]
+        }
+      ],
+      "must_not": [
+        {
+          "id": "number_in_flag",
+          "description": "proposes storing the minutes in a feature flag",
+          "any_of": [
+            "rollout_percent\\s+(as|for|to\\s+hold)\\s+(the\\s+)?(hold|minutes)",
+            "(add|create|new)\\s+(a\\s+)?(feature\\s+)?flag\\s+(row\\s+)?(holding|storing|with)\\s+(the\\s+)?(number\\s+of\\s+)?minutes"
+          ]
+        }
+      ],
+      "example_pass": "Not as a feature flag: ADR 0014 says flags are not a config store and must not hold numbers, and the May 2024 holds meeting explicitly kept hold length as the HALLPASS_HOLD_MINUTES env var read by lifecycle.hold_ttl via settings.hold_minutes. Options to take back: (a) a small audited settings table with a bounded hold-minutes value, read by hold_ttl with a short cache, editable by superusers; or (b) keep the env var and script the runbook change. Either needs a product decision and an update to holds-and-payment.md and the outage runbook. Risks: the change only affects new holds, and start_checkout sizes the Paybridge session from hold_expires_at, so longer holds mean longer sessions; camping on popular slots.",
+      "example_fail": "Add a feature flag holding the number of minutes for the hold, let duty managers edit it in the back office, and have the booking code read the flag value instead of the fixed 15 minutes."
+    },
+    "H09": {
+      "checks": [
+        {
+          "id": "anonymise",
+          "description": "anonymises rather than deleting the resident",
+          "any_of": [
+            "anonymi[sz]"
+          ]
+        },
+        {
+          "id": "reuse",
+          "description": "reuses retention.anonymise_resident",
+          "any_of": [
+            "anonymise_resident",
+            "anonymize_resident"
+          ]
+        },
+        {
+          "id": "financial",
+          "description": "keeps financial records for 6 years",
+          "any_of": [
+            "(6|six)\\s*(-\\s*)?years?",
+            "financial\\s+records?"
+          ]
+        },
+        {
+          "id": "adr",
+          "description": "applies ADR 0010 / constraints",
+          "any_of": [
+            "ADR\\s*0?010"
+          ]
+        },
+        {
+          "id": "governance",
+          "description": "involves superuser/IG process or audit trail",
+          "any_of": [
+            "\\bIG\\b",
+            "information\\s+governance",
+            "audit"
+          ]
+        }
+      ],
+      "must_not": [
+        {
+          "id": "hard_delete",
+          "description": "proposes deleting the resident row",
+          "any_of": [
+            "DELETE\\s+FROM\\s+residents",
+            "(hard|permanently)[\\s-]+delet",
+            "remov\\w*\\s+(the\\s+)?resident\\s+row"
+          ]
+        }
+      ],
+      "example_pass": "ADR 0010 and the constraints say we anonymise, never remove rows: bookings, payments and refunds reference the resident and financial records are kept for 6 years from the end of the financial year. So 'delete my account' should call retention.anonymise_resident(reason='erasure_request') for the signed-in resident, after a confirm step, in one transaction that also writes the audit_log row (actor resident). Today erasure is superuser-only and goes through IG, who explain what financial data stays; agree with IG whether self-service is acceptable and what the confirmation text says. Risks: future bookings and pending refunds (cancel or block first), org admin of an org with future bookings, and the session must be ended.",
+      "example_fail": "Add a Delete account button on the profile page that removes the resident row and all their bookings and consents from the database, then logs them out. Show a confirmation dialog first so it isn't pressed by accident."
+    },
+    "H10": {
+      "checks": [
+        {
+          "id": "no_migration",
+          "description": "realises staff_users.last_login_at already exists (migration 0010), so no new migration",
+          "any_of": [
+            "no\\s+(new\\s+)?(schema\\s+change|migration)",
+            "already\\s+(added|exists?|has|there|present)",
+            "migration\\s+0?010"
+          ]
+        },
+        {
+          "id": "function",
+          "description": "changes auth.verify_magic_link's staff branch",
+          "any_of": [
+            "verify_magic_link"
+          ]
+        },
+        {
+          "id": "mechanism",
+          "description": "checks issued time against staff last_login_at and updates it",
+          "any_of": [
+            "last_login_at"
+          ]
+        },
+        {
+          "id": "test",
+          "description": "inverts test_staff_link_can_be_reused_within_ttl",
+          "any_of": [
+            "test_staff_link_can_be_reused",
+            "test_auth"
+          ]
+        }
+      ],
+      "must_not": [
+        {
+          "id": "new_column",
+          "description": "writes a migration to add last_login_at to staff_users",
+          "any_of": [
+            "ALTER\\s+TABLE\\s+staff_users\\s+ADD",
+            "(new|write|add)\\s+(a\\s+)?migration\\s+(to\\s+)?add(ing|s)?\\s+(staff_users\\.)?last_login_at"
+          ]
+        }
+      ],
+      "example_pass": "No schema change needed: migration 0010 (3.2) already added staff_users.last_login_at; the auth.py docstring, ADR 0004 note and known issue 6 are stale. In auth.verify_magic_link, give the staff branch the same treatment as residents: SELECT role, last_login_at FROM staff_users WHERE id = %s AND active FOR UPDATE, reject if issued <= last_login_at, then UPDATE staff_users SET last_login_at = now. Tests: test_staff_link_can_be_reused_within_ttl in test_auth.py must be inverted to expect InvalidLink on the second use. Update the known issue and staff how-to. Risk: whole-second token times, as with residents.",
+      "example_fail": "Write a migration adding last_login_at to staff_users, then store a list of used tokens in a new table and check it on login. Staff links will then be single-use."
+    },
+    "H11": {
+      "checks": [
+        {
+          "id": "columns",
+          "description": "adds date validity (valid_from/valid_to) to opening_hours",
+          "any_of": [
+            "valid_from",
+            "valid_to"
+          ]
+        },
+        {
+          "id": "unique",
+          "description": "replaces the UNIQUE (space_id, weekday) constraint",
+          "any_of": [
+            "unique"
+          ]
+        },
+        {
+          "id": "availability",
+          "description": "updates availability's opening-hours query (_OPENING_HOURS_SQL / _hours_by_space)",
+          "any_of": [
+            "_OPENING_HOURS_SQL",
+            "_hours_by_space"
+          ]
+        },
+        {
+          "id": "usage",
+          "description": "also updates the usage report, which reads opening_hours",
+          "any_of": [
+            "usage\\.py",
+            "usage\\s+report",
+            "_OPENING_SQL"
+          ]
+        },
+        {
+          "id": "migration_rules",
+          "description": "new forward-only migration following conventions",
+          "any_of": [
+            "forward[\\s-]*only",
+            "new\\s+migration",
+            "0011_"
+          ]
+        }
+      ],
+      "must_not": [],
+      "example_pass": "HP-470. New forward-only migration 0011_seasonal_opening_hours.sql (BEGIN/COMMIT): add valid_from date and valid_to date (NULL = open-ended) to opening_hours, drop UNIQUE (space_id, weekday) and replace it with an exclusion constraint so date ranges for the same space and weekday can't overlap. Existing rows get NULL validity, so old code keeps working during deploy. Update availability._OPENING_HOURS_SQL and _hours_by_space to pick the row valid on each day rather than keying by weekday only, and the usage report's _OPENING_SQL/_open_hours the same way. Risks: changing hours doesn't check existing bookings; ISO weekday; the table is small so no DBA concern.",
+      "example_fail": "Add a season column to the spaces table with values summer or winter and a cron job that flips it in April and October. The booking page can then show different hours depending on the season."
+    },
+    "H12": {
+      "checks": [
+        {
+          "id": "job",
+          "description": "looks at the worker's reconcile_paybridge job",
+          "any_of": [
+            "reconcile_paybridge",
+            "worker\\.py"
+          ]
+        },
+        {
+          "id": "call",
+          "description": "notices reconcile_day must be called with conn and day= keyword",
+          "any_of": [
+            "reconcile_day\\(\\s*conn",
+            "day\\s*=",
+            "signature",
+            "keyword"
+          ]
+        },
+        {
+          "id": "yesterday",
+          "description": "reconciles yesterday (local)",
+          "any_of": [
+            "today_local\\(\\)\\s*(-|minus)",
+            "yesterday,?\\s*\\(?local",
+            "local\\s+yesterday",
+            "previous\\s+(local\\s+)?day"
+          ]
+        },
+        {
+          "id": "backfill",
+          "description": "backfills in batches / relies on per-day dedupe to avoid flooding",
+          "any_of": [
+            "batch",
+            "dedupe",
+            "one\\s+email\\s+per\\s+day",
+            "dry[\\s-]?run"
+          ]
+        },
+        {
+          "id": "manual",
+          "description": "uses the manual per-day reconciliation command",
+          "any_of": [
+            "--day",
+            "python\\s+-m\\s+hallpass\\.billing\\.reconciliation"
+          ]
+        }
+      ],
+      "must_not": [],
+      "example_pass": "HP-489. In worker.py, reconcile_paybridge already computes yesterday from clock.today_local() minus one day, but it calls reconciliation.reconcile_day(target) positionally; the signature is reconcile_day(conn, *, day=...), and it returns an int, so wrap nothing in len(). Fix the call to reconcile_day(conn, day=target) and return the count; add a unit test for the job. Backfill: run python -m hallpass.billing.reconciliation --day YYYY-MM-DD for each missed day since June 2025 with --dry-run first, then in batches of a few days; _email_finance uses a recon:<day> dedupe key, so one email per day. Agree with Finance on suppressing emails during the backfill. Risk: the UTC settlement boundary still gives timing noise.",
+      "example_fail": "Increase the logging on the reconciliation job and change the email so Finance get a summary even when there are no mismatches. Ask Paybridge whether their settlement file was delayed."
+    },
+    "H13": {
+      "checks": [
+        {
+          "id": "location",
+          "description": "hooks into payments.mark_succeeded's HoldExpired branch",
+          "any_of": [
+            "mark_succeeded",
+            "HoldExpired"
+          ]
+        },
+        {
+          "id": "duplicate",
+          "description": "avoids a second email when create_refund_row is capped by a duplicate webhook",
+          "any_of": [
+            "create_refund_row",
+            "duplicate\\s+(webhook|event|delivery)"
+          ]
+        },
+        {
+          "id": "outbox",
+          "description": "enqueues via the outbox in the same transaction",
+          "any_of": [
+            "enqueue",
+            "outbox"
+          ]
+        },
+        {
+          "id": "template",
+          "description": "adds a new template and subject",
+          "any_of": [
+            "SUBJECTS",
+            "\\.email\\.txt",
+            "new\\s+template"
+          ]
+        },
+        {
+          "id": "decision",
+          "description": "cites the May 2024 meeting decision (refund plus apology email)",
+          "any_of": [
+            "meeting",
+            "hold_expired_before_payment"
+          ]
+        }
+      ],
+      "must_not": [],
+      "example_pass": "The May 2024 holds meeting agreed an automatic full refund plus an apology email; only the refund was built. In billing payments.mark_succeeded, the except HoldExpired branch (raised by bookings lifecycle.confirm when the revived hold clashes) calls create_refund_row with reason hold_expired_before_payment. Enqueue a new template, e.g. late_payment_refunded, with outbox.enqueue(conn, template=..., booking_id=...) in the same transaction, only when create_refund_row returns an id: a duplicate webhook or dashboard resend gets capped to None and must not send a second email. Add SUBJECTS entry and late_payment_refunded.email.txt. Note holds-and-payment.md is out of date about what billing does; fix it. Risk: email goes before the refund actually settles.",
+      "example_fail": "When a late payment happens, send the resident an SMS straight away from the webhook handler telling them their booking failed, and ask staff to refund them manually from the back office."
+    },
+    "H14": {
+      "checks": [
+        {
+          "id": "hook",
+          "description": "changes organisations.remove_member",
+          "any_of": [
+            "remove_member"
+          ]
+        },
+        {
+          "id": "update",
+          "description": "reassigns bookings.resident_id on the org's future active bookings",
+          "any_of": [
+            "UPDATE\\s+bookings",
+            "resident_id"
+          ]
+        },
+        {
+          "id": "recipients",
+          "description": "knows notifications follow the booking's resident via recipients.py",
+          "any_of": [
+            "recipients(\\.py)?",
+            "resolve"
+          ]
+        },
+        {
+          "id": "fallback",
+          "description": "handles no remaining admin (e.g. billing_email / staff)",
+          "any_of": [
+            "billing_email",
+            "no\\s+(other|remaining)\\s+admin",
+            "fall\\s*back"
+          ]
+        },
+        {
+          "id": "audit",
+          "description": "records the transfer in audit_log",
+          "any_of": [
+            "audit"
+          ]
+        }
+      ],
+      "must_not": [],
+      "example_pass": "Known issue 8. Org bookings store whoever made them in bookings.resident_id, and notifications/recipients.py resolve sends reminders and cancellations to that resident, so the removed secretary keeps getting them and the new one can't cancel. In organisations.remove_member, in the same transaction, pick another org_admin and UPDATE bookings SET resident_id = new admin WHERE organisation_id = org AND resident_id = removed AND starts_at > now AND status IN ('held','confirmed'). If there is no remaining admin, set resident_id NULL so messages fall back to the org's billing_email. Write an audit_log row listing the moved bookings. Risks: reminders already queued in the outbox still go to the old person; which admin to choose should be a product decision.",
+      "example_fail": "Add a button for staff to manually change the owner of each booking, and tell clubs to email the service desk when their secretary changes so staff can do it."
+    },
+    "H15": {
+      "checks": [
+        {
+          "id": "full_tier",
+          "description": "states 7 days or more gives a full refund",
+          "any_of": [
+            "(7|seven)\\s*days?"
+          ]
+        },
+        {
+          "id": "partial_tier",
+          "description": "states 48 hours to 7 days gives 50%",
+          "any_of": [
+            "48\\s*h(ours?)?",
+            "(2|two)\\s+days"
+          ]
+        },
+        {
+          "id": "adr",
+          "description": "cites ADR 0012 as the current policy",
+          "any_of": [
+            "ADR\\s*0?012"
+          ]
+        },
+        {
+          "id": "template",
+          "description": "edits booking_cancelled.email.txt",
+          "any_of": [
+            "booking_cancelled"
+          ]
+        },
+        {
+          "id": "placeholders",
+          "description": "respects placeholder/context rules (or keeps text static)",
+          "any_of": [
+            "placeholder",
+            "context",
+            "PermanentSendError"
+          ]
+        }
+      ],
+      "must_not": [
+        {
+          "id": "v1_rule",
+          "description": "presents the superseded 24-hour full-refund rule as current",
+          "any_of": [
+            "24\\s*h(ours?)?\\s+(or\\s+more\\s+)?(before|notice).{0,40}(full|100\\s*%)",
+            "full\\s+refund\\s+(up\\s+to|if\\s+(you\\s+)?cancel\\w*\\s+more\\s+than)\\s+(24\\s*h|a\\s+day|one\\s+day)",
+            "full\\s+refund\\s+if\\s+(you\\s+)?cancel\\w*\\s+(24\\s*h|a\\s+day|one\\s+day)"
+          ]
+        }
+      ],
+      "example_pass": "Current policy is ADR 0012 (refunds.decide): 7 days or more before the start, 100%; from 48 hours up to 7 days, 50%; under 48 hours, nothing; council closures always 100%; no-shows get nothing. Notice is elapsed time, so across a clock change a week is 167 or 169 hours. Edit notifications/templates/booking_cancelled.email.txt with this as static text; if we show the actual amount, add it to the enqueue context, because every placeholder must exist or the send fails permanently. Don't base it on the old policy ADR, which is superseded. Risk: invoice-paying organisations get a cancellation charge instead, so the wording should say 'card payments'.",
+      "example_fail": "Add a paragraph to the cancellation email: full refund if you cancel 24 hours or more before your booking, otherwise no refund unless staff agree. Keep it short so it fits on a phone."
+    },
+    "H16": {
+      "checks": [
+        {
+          "id": "grid",
+          "description": "uses the 30-minute grid (ADR 0011)",
+          "any_of": [
+            "30[\\s-]*min",
+            "half[\\s-]+hour",
+            "ADR\\s*0?011"
+          ]
+        },
+        {
+          "id": "reuse",
+          "description": "reuses availability.search with min_length",
+          "any_of": [
+            "min_length"
+          ]
+        },
+        {
+          "id": "legacy",
+          "description": "accounts for legacy quarter-hour bookings that block neighbouring slots",
+          "any_of": [
+            "legacy",
+            ":15",
+            "quarter[\\s-]+hour"
+          ]
+        },
+        {
+          "id": "lead",
+          "description": "respects the public 2-hour lead time",
+          "any_of": [
+            "PUBLIC_LEAD_TIME",
+            "lead\\s+time"
+          ]
+        },
+        {
+          "id": "max_len",
+          "description": "respects the 4-hour resident maximum",
+          "any_of": [
+            "(4|four)[\\s-]*hours?",
+            "MAX_RESIDENT_BOOKING"
+          ]
+        }
+      ],
+      "must_not": [
+        {
+          "id": "old_grid",
+          "description": "builds on the superseded 15-minute grid",
+          "any_of": [
+            "(15|fifteen)[\\s-]*min(ute)?s?\\s+(grid|slots?|steps?|granularity|increments)",
+            "divid\\w*\\s+by\\s+(4|four)"
+          ]
+        }
+      ],
+      "example_pass": "Slots are 30 minutes on the local wall-clock grid (ADR 0011, slots.SLOT_MINUTES). Add bookings.availability.next_free_slot(conn, space_id, length) that calls availability.search for the space over today plus a few days (window capped at 28) with min_length=length and returns the first FreeSlot; search already applies PUBLIC_LEAD_TIME (2 hours), opening hours, blackouts and active bookings. Reject lengths over the 4-hour resident maximum or not a multiple of 30 minutes. Legacy bookings on :15/:45 still exist and block every slot they touch, which search handles because it tests real ranges. Thin API handler in api/bookings.py. Tests: legacy-booking case, closure, clock-change day. Risk: result is a hint, the exclusion constraint decides at hold time.",
+      "example_fail": "Loop over the day in 15-minute slots from now, and for each slot query the bookings table to see if anything overlaps; return the first gap long enough for the requested length."
+    },
+    "H17": {
+      "checks": [
+        {
+          "id": "unconfirmed",
+          "description": "flags the charity exemption as an unconfirmed assumption",
+          "any_of": [
+            "unconfirmed",
+            "not\\s+(been\\s+)?confirmed",
+            "assumption",
+            "unverified"
+          ]
+        },
+        {
+          "id": "ref",
+          "description": "points at HP-466 / assumptions-vat.md",
+          "any_of": [
+            "HP-?466",
+            "assumptions-vat"
+          ]
+        },
+        {
+          "id": "code",
+          "description": "names vat.treatment_for or invoices.vat_breakdown",
+          "any_of": [
+            "treatment_for",
+            "vat_breakdown"
+          ]
+        },
+        {
+          "id": "render",
+          "description": "notes VAT is computed at render time so old invoices change",
+          "any_of": [
+            "render[\\s-]*time",
+            "re-?render",
+            "at\\s+render"
+          ]
+        },
+        {
+          "id": "finance",
+          "description": "asks Finance to confirm before printing exemption wording",
+          "any_of": [
+            "(ask|check|confirm)\\w*\\s+with\\s+finance",
+            "finance\\s+(to\\s+)?(confirm|sign)"
+          ]
+        }
+      ],
+      "must_not": [
+        {
+          "id": "fact",
+          "description": "states charities are VAT-exempt as settled fact",
+          "any_of": [
+            "charities\\s+are\\s+(vat[\\s-]+)?exempt",
+            "registered\\s+charities\\s+(don'?t|do\\s+not)\\s+pay\\s+vat"
+          ]
+        }
+      ],
+      "example_pass": "Caution first: vat.treatment_for marks any organisation with a charity_number as exempt, but that rule is an unconfirmed assumption (HP-466, docs/billing/assumptions-vat.md A1) copied from old paper forms, and the team suspects it is wrong. Printing 'VAT exempt - registered charity' would put that assumption in writing to the customer. Plan: add charity_number to the invoice header via invoices.vat_breakdown, but only add the exemption wording after we check with Finance; if they say the exemption is wrong, remove the charity branch and its test instead. Risk: VAT is split at render time, so any change alters re-downloaded old invoices; Finance keep the PDFs as sent.",
+      "example_fail": "Registered charities don't pay VAT, so add the charity number and 'VAT exempt - registered charity' to each invoice line for organisations with a charity number. Update the PDF template."
+    },
+    "H18": {
+      "checks": [
+        {
+          "id": "promotional",
+          "description": "treats it as promotional: email only, marketing consent",
+          "any_of": [
+            "marketing\\s+consent",
+            "promotional"
+          ]
+        },
+        {
+          "id": "unverified",
+          "description": "flags that SMS reminder opt-in is an unverified assumption",
+          "any_of": [
+            "assumption",
+            "unverified",
+            "not\\s+(been\\s+)?verified",
+            "unconfirmed"
+          ]
+        },
+        {
+          "id": "imports",
+          "description": "mentions the imported consent rows",
+          "any_of": [
+            "import(ed)?\\s+(consent\\s+)?rows",
+            "4,?000",
+            "source\\s*=\\s*'?import"
+          ]
+        },
+        {
+          "id": "ig",
+          "description": "involves IG / privacy rules",
+          "any_of": [
+            "\\bIG\\b",
+            "information\\s+governance",
+            "privacy\\.md",
+            "DPIA"
+          ]
+        },
+        {
+          "id": "code",
+          "description": "knows consent lives in consents.py / sms_reminders purpose",
+          "any_of": [
+            "consents(\\.py|\\.DEFAULTS|\\.current)",
+            "sms_reminders"
+          ]
+        }
+      ],
+      "must_not": [
+        {
+          "id": "assumed_consent",
+          "description": "treats SMS reminder sign-up as consent to send texts",
+          "any_of": [
+            "opted[\\s-]+in.{0,30}so\\s+(we\\s+)?(can|may)\\s+(text|send)",
+            "(they|these\\s+people)\\s+(have\\s+)?(already\\s+)?consented\\s+to\\s+(texts|sms)"
+          ]
+        }
+      ],
+      "example_pass": "Recommend not doing this as asked. A timetable announcement is promotional, and the notification rules say promotional messages are email only and only to residents with marketing consent; privacy.md allows newsletter-style sends only to residents whose latest marketing consent is true. The sms_reminders purpose in consents.py only covers reminders, and even that opt-in is an unverified assumption: nobody has checked the sign-up form default or the ~4,000 imported consent rows. Plan: offer an email send to the marketing-consent list; any SMS idea goes to IG first. Risks: complaints, TextHub cost, and STOP only records an sms_reminders opt-out.",
+      "example_fail": "Select every resident whose latest sms_reminders consent is granted, since they opted in, so we can text them, and queue an SMS for each through the outbox. Spread the sends over an hour to avoid TextHub limits."
+    },
+    "H19": {
+      "checks": [
+        {
+          "id": "not_found",
+          "description": "says there is no finding or investigation on no-show rates",
+          "any_of": [
+            "no\\s+(existing\\s+)?(finding|investigation|write-?up|analysis|study)",
+            "(there\\s+is|there'?s)\\s+no\\s+.{0,40}(finding|investigation|write-?up|data)",
+            "(nothing|none)\\s+(has\\s+been\\s+)?(found|written\\s+up|investigated)"
+          ]
+        },
+        {
+          "id": "not_built",
+          "description": "says the staff-screen flag was never built",
+          "any_of": [
+            "(not|never)\\s+(been\\s+)?(built|implemented)",
+            "doesn'?t\\s+exist"
+          ]
+        },
+        {
+          "id": "meeting",
+          "description": "cites the May 2024 meeting outcome (flag only, duty manager decides, no suspension)",
+          "any_of": [
+            "duty\\s+manager",
+            "no\\s+automatic\\s+suspension",
+            "suspen"
+          ]
+        },
+        {
+          "id": "code",
+          "description": "names mark_no_show",
+          "any_of": [
+            "mark_no_show"
+          ]
+        },
+        {
+          "id": "data",
+          "description": "points at existing no-show data (usage report no-show column / no_show_marked_by)",
+          "any_of": [
+            "no_show_marked_by",
+            "usage\\s+report",
+            "no_show_count"
+          ]
+        }
+      ],
+      "must_not": [],
+      "example_pass": "There is no finding or investigation on no-show rates in the repo; the only figures are a passing mention in reminders.md (about 11% of evening bookings, falling to about 6%), with no breakdown of staff forgetting to mark people in. The May 2024 holds meeting agreed: no automatic suspension, flag residents with 3 no-shows in 12 weeks on the staff screen and let the duty manager decide, update T&Cs first. That flag has never been built, despite the comment in lifecycle.mark_no_show saying accounts does it. What exists: the no_show status and the no_show_marked_by column (which mark_no_show doesn't set), and the usage report's no_show_count. Step one: fix no_show_marked_by and measure.",
+      "example_fail": "Build a nightly job that counts no-shows per resident and suspends anyone with three in twelve weeks, emailing them a warning. Add a column to residents for the suspension end date."
+    },
+    "H20": {
+      "checks": [
+        {
+          "id": "not_found",
+          "description": "says no such decision exists; the question is open",
+          "any_of": [
+            "no\\s+(such\\s+)?(decision|ADR)",
+            "(not|never)\\s+(been\\s+)?(decided|agreed)",
+            "undecided",
+            "open\\s+question"
+          ]
+        },
+        {
+          "id": "current",
+          "description": "describes current behaviour: weeks cancelled and refunded, series not extended",
+          "any_of": [
+            "not\\s+extended",
+            "isn'?t\\s+extended",
+            "no\\s+extension"
+          ]
+        },
+        {
+          "id": "code",
+          "description": "names the blackout code where the TODO sits",
+          "any_of": [
+            "create_blackout",
+            "blackouts\\.py"
+          ]
+        },
+        {
+          "id": "test",
+          "description": "notes the test that pins current behaviour",
+          "any_of": [
+            "test_cancel_affected_cancels_series_occurrences",
+            "test_blackouts"
+          ]
+        },
+        {
+          "id": "signoff",
+          "description": "needs Leisure Services and Finance to decide first",
+          "any_of": [
+            "blackouts-and-series",
+            "(decision|sign[\\s-]*off)\\s+from\\s+(leisure\\s+services|finance)",
+            "(leisure\\s+services|finance)\\s+(must|need\\s+to|to)\\s+(decide|sign)"
+          ]
+        }
+      ],
+      "must_not": [],
+      "example_pass": "I can't find that decision: there is no ADR on it, and docs/bookings/blackouts-and-series.md says it is undecided, with auto-extend only one of four options and asks that behaviour not change without a decision from Leisure Services and Finance. The known issue lists it as an open question. Today a closure cancels the affected occurrences with reason closure (full refund) and the series is not extended; the TODO is in blackouts.create_blackout, and test_cancel_affected_cancels_series_occurrences in test_blackouts.py pins it. Plan: go back to Leisure Services for a written decision first. If agreed, extend via extend_series-style logic, minding the summer break, invoices already issued, and HP-503.",
+      "example_fail": "Implement the agreed decision: when a closure cancels sessions in a series, add the same number of sessions at the end of the series and update the end date. Send the club an email listing the new dates."
+    }
+  }
+}

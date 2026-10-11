@@ -11,6 +11,7 @@ import contextlib
 import json
 import logging
 import sys
+import tempfile
 from pathlib import Path
 
 from context_orchestrator.agent_interface.api import RETRIEVAL_MODES, ContextService
@@ -52,6 +53,12 @@ def _build_parser() -> argparse.ArgumentParser:
         p.add_argument("--embed-model", default=DEFAULT_MODEL)
         p.add_argument("--ollama-url", default=DEFAULT_OLLAMA_URL)
 
+    mcp = sub.add_parser("mcp", help="serve the context service as an MCP tool over stdio")
+    common(mcp)
+    mcp.add_argument("--max-tokens", type=int, default=4000)
+    mcp.add_argument("--per-kind-limit", type=int, default=3)
+    mcp.add_argument("--hops", type=int, choices=[1, 2], default=DEFAULT_HOPS)
+
     ingest = sub.add_parser("ingest", help="load or refresh the project knowledge base")
     common(ingest)
 
@@ -78,6 +85,24 @@ def _build_parser() -> argparse.ArgumentParser:
         "--record-task-text",
         action="store_true",
         help="store task text and query terms in telemetry (off by default)",
+    )
+
+    ag = sub.add_parser("eval-agent", help="phase 2: compare context strategies with claude -p")
+    ag.add_argument("suite", type=Path)
+    ag.add_argument("--rubrics", type=Path, required=True)
+    ag.add_argument("--tasks", help="comma-separated task ids (default: all)")
+    ag.add_argument("--strategies", default="A,B,C,D")
+    ag.add_argument("--model", default="haiku")
+    ag.add_argument("--reps", type=int, default=1)
+    ag.add_argument("--max-budget-usd", type=float, default=3.0)
+    ag.add_argument(
+        "--service-args",
+        default="--retrieval hybrid --hops 2",
+        help="extra arguments for `ctxo mcp` in strategy B",
+    )
+    ag.add_argument("--out", type=Path, default=Path("benchmarks/results"))
+    ag.add_argument(
+        "--work-dir", type=Path, default=Path(tempfile.gettempdir()) / "ctxo-agent-runs"
     )
 
     ev = sub.add_parser("eval-retrieval", help="score retrieval against a labelled task suite")
@@ -143,6 +168,28 @@ def main(argv: list[str] | None = None) -> int:
         format="%(levelname)s %(name)s: %(message)s",
         stream=sys.stderr,
     )
+    if args.command == "eval-agent":
+        from context_orchestrator.evaluation.agent_eval import AgentConfig, run_agent_suite
+        from context_orchestrator.evaluation.retrieval_eval import load_suite
+
+        try:
+            config = AgentConfig(
+                model=args.model,
+                strategies=tuple(s.strip() for s in args.strategies.split(",")),
+                repetitions=args.reps,
+                max_budget_usd=args.max_budget_usd,
+                service_args=tuple(args.service_args.split()),
+            )
+            run_dir = run_agent_suite(
+                load_suite(args.suite), args.rubrics, args.out, args.work_dir, config,
+                task_ids=args.tasks.split(",") if args.tasks else None,
+            )  # fmt: skip
+        except (ValueError, OSError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        print((run_dir / "summary.md").read_text(encoding="utf-8"))
+        print(f"Raw results: {run_dir}")
+        return 0
     if args.command == "eval-retrieval":
         try:
             return _eval_retrieval(args)
@@ -154,6 +201,24 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     try:
+        if args.command == "mcp":
+            from context_orchestrator.agent_interface.mcp_server import (
+                McpServer,
+                ServerConfig,
+                run_stdio,
+            )
+
+            with ContextService(
+                args.project, args.state_dir, retrieval=args.retrieval, embedder=_embedder(args)
+            ) as svc:
+                report = svc.ingest()
+                logging.getLogger(__name__).info(
+                    "mcp: %d chunks ready", report.chunks_written + len(report.unchanged)
+                )
+                config = ServerConfig(args.max_tokens, args.per_kind_limit, args.hops)
+                run_stdio(McpServer(svc, config))
+            return 0
+
         if args.command == "ingest":
             with ContextService(
                 args.project, args.state_dir, retrieval=args.retrieval, embedder=_embedder(args)
