@@ -3,7 +3,7 @@
 Read this first when resuming work in a new session. Keep it current: update
 it at the end of every milestone, and before a session's context runs out.
 
-**Last updated:** 2026-10-11, phase 3b done incl. the B2V check (no signal); next step open.
+**Last updated:** 2026-10-11, phase 3c what-if estimates done; owner choosing the next direction.
 
 ## Resume prompt
 
@@ -52,6 +52,14 @@ to rely on the excerpts did not reduce re-reads (31% vs 30%); no signal.
 0.50). Detecting a 50% saving needs ~18 runs, a 20% saving ~160. Use small
 checks only for large effects, and prefer low-noise behaviour measures from
 traces (`ctxo analyze-traces`: re-read share, service calls, reads per run).
+
+Phase 3c (`ctxo what-if`, benchmarks/README.md): whole-file answers would
+cost more (+7% to +45%); better first answers save ~5%; **pruning old tool
+output in place could save ~33-53% of input tokens** (upper bound; caching
+and harness caveats). Pruning can't be done inside the Claude Code CLI; it
+needs our own agent loop (Claude API context editing `clear_tool_uses`, or a
+custom harness). Related research: Meta's Context Language Models (agents
+edit their own context), CMU/Meta Agentic Context Management.
 
 Candidate next steps:
 - **Better follow-up answers** from the service (an agent asking about a
