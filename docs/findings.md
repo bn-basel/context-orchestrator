@@ -99,8 +99,9 @@ agent otherwise behaves the same):
 
 The last row, editing the context in place, is the idea behind Meta's
 *Context Language Models* (agents editing their own working context) and the
-Claude API's context-editing feature. It is the largest lever found, and
-**it is untested**, because the Claude Code CLI doesn't allow it.
+Claude API's context-editing feature. It looked like the largest lever.
+Claude Code doesn't allow it, so it was tested in our own loop (Result 6):
+**it didn't hold up.**
 
 ## Result 4: what didn't work
 
@@ -121,23 +122,83 @@ to run. Detecting a 50% saving takes ~18 runs; a 20% saving, ~160. Small
 checks can only catch large effects. Behaviour measures from traces
 (re-reads, tool calls) are far less noisy than token totals.
 
+## Result 6: pruning old context didn't save money on Haiku 5.5
+
+To test pruning, a small agent loop of our own replaced Claude Code
+(`evaluation/own_loop.py`): the same kind of read-only tools, Claude Haiku
+5.5 through OpenRouter, every token count and charge recorded per call.
+Pruning works like the Claude API's `clear_tool_uses`: once old tool output
+passes ~12k tokens, all but the last 3 results become one-line stubs. Five
+tasks, picked by rule from heavy to light, each run with and without it.
+
+| | Without pruning | With pruning |
+|---|---|---|
+| Mean plan score | 0.92 | 0.96 |
+| Cost (5 runs, OpenRouter's charge) | $0.031 | $0.036 |
+
+Paired: input tokens ×0.95, **cost ×1.17**. Three reasons, from the
+transcripts:
+
+- **Haiku 5.5 works in few, wide steps:** 2–6 tool calls per step, 4–9
+  model calls per task. Old output isn't re-sent many times, so there is
+  little to remove. The phase 3 estimate came from Haiku 4.5 in Claude Code,
+  which took many narrow steps.
+- **Pruned agents went back.** Three of five re-ran earlier lookups (12
+  repeats; none without pruning) and took 1–3 extra steps.
+- **Edits cost money.** Changing earlier context means writing the cache
+  again from that point, and Haiku 5.5's reasoning blocks after an edit have
+  to be dropped, because the API rejects reasoning whose history changed.
+
+Five pairs only detect large effects, and nothing pointed towards a saving.
+Pruning may still pay on much longer tasks than these.
+
+## Result 7: memory across tasks: good findings, no saving
+
+The service gained a write path: an agent can save a finding (a claim plus a
+file, line range and a short quote that must match those lines). Findings
+stay "unverified" until reviewed, are flagged when the file changes, and are
+served before search results. Five follow-up tasks continue earlier ones in
+the same area. Each earlier task ran first and saved findings; each
+follow-up then ran once on that memory and once on an empty one.
+
+- **The findings were good.** 4–5 per run, none rejected by the quote check,
+  accurate on reading; some caught docs that contradict the code. Every
+  follow-up with memory received 3 of them in its first answer.
+- **The first 15 runs looked promising** (cost ×0.89), but most of that came
+  from one run without memory that wandered. **Three more repetitions** (45
+  runs) gave ×1.02.
+- **Pooled over 20 pairs: cost ×0.98 (95% interval 0.90–1.09), scores
+  equal.** That rules out a saving larger than about 10% for a single
+  follow-up.
+- **Why:** the agents **opened 30 of the 36 files the findings cited
+  anyway**. They had been told findings are unreviewed and to check what
+  they rely on, which is the right instruction for unreviewed claims.
+
+So memory can only save reading once agents can trust it: reviewed findings,
+and agents allowed to rely on them. That is untested.
+
 ## Limits
 
 - **One corpus.** It is synthetic, and written by agents from the same model
   family as the one tested.
-- **One small model** (Haiku 4.5).
+- **Two small models**, in two harnesses: Haiku 4.5 in Claude Code
+  (results 1–5), Haiku 5.5 in our own loop (results 6–7). Results from one
+  setting don't carry over to the other; result 6 shows how much that
+  matters.
 - **Regex-graded plans**, not executed code changes.
-- **Small samples.** 20 tasks, and 10-run checks after the main benchmark.
-- **Cost is API-equivalent.** Figures are the CLI's list-price estimates, not
-  what a subscription is charged.
+- **Small samples.** 20 tasks; 10–45-run checks after the main benchmark.
+- **Two kinds of cost.** Claude Code figures are the CLI's list-price
+  estimates, not what a subscription is charged. Own-loop figures are what
+  OpenRouter actually charged (the list-price estimate matched them).
 
 ## What would move this forward
 
-1. **Test in-place context pruning** with an agent loop that can edit its own
-   context (Claude API context editing). It is the biggest estimated saving.
-   Watch the interaction with prompt caching.
-2. **A multi-task benchmark** where agents write verified findings back to the
-   service, so later tasks on the same project start ahead. That is what the
-   service was designed for, and single-task runs can't show it.
-3. **Robustness:** a second model (Sonnet), a real open-source corpus, and an
-   independent label and rubric check.
+1. **Trusted memory.** Let a person review findings, and tell agents that
+   reviewed ones need no re-checking. That tests whether trust, not
+   retrieval, is what stops the saving. Several follow-ups per earlier task
+   would show whether reuse pays for the cost of recording.
+2. **Make the service the default path.** The only clear saving came when
+   the agent was told to ask first.
+3. **Robustness:** a real open-source corpus, a larger model, longer tasks
+   (where pruning could still matter), and an independent label and rubric
+   check.

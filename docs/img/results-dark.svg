@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="562" viewBox="0 0 900 562" role="img" aria-labelledby="t d">
+<title id="t">Context strategies, pruning and memory compared on 370 agent runs</title>
+<desc id="d">Cost relative to a baseline and change in plan score, with 95% intervals: five ways of giving a coding agent project context (Claude Code, Haiku 4.5), and pruning and cross-task memory in our own agent loop (Haiku 5.5).</desc>
+<text x="24" y="34" fill="#ffffff" font-size="20" font-weight="600" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">How should a coding agent get project context?</text>
+<text x="24" y="58" fill="#c3c2b7" font-size="13" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">370 runs on one synthetic project · $31 API-equivalent (Claude Code) + $0.43 charged (own loop)</text>
+<text x="24" y="121.0" fill="#c3c2b7" font-size="12" font-weight="600" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">CLAUDE CODE, HAIKU 4.5 · 300 RUNS · VS. THE AGENT EXPLORING ALONE</text>
+<line x1="24" y1="129.0" x2="876" y2="129.0" stroke="#3a3a37" stroke-width="1"/>
+<text x="24" y="161.0" fill="#ffffff" font-size="14" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">Whole project in the prompt</text>
+<text x="24" y="203.0" fill="#ffffff" font-size="14" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">Agent explores alone (baseline)</text>
+<text x="24" y="245.0" fill="#ffffff" font-size="14" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">Context service, offered</text>
+<text x="24" y="287.0" fill="#ffffff" font-size="14" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">Context service, used first</text>
+<text x="24" y="329.0" fill="#ffffff" font-size="14" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">Oracle: exactly the needed pieces</text>
+<text x="24" y="371.0" fill="#c3c2b7" font-size="12" font-weight="600" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">OWN AGENT LOOP, HAIKU 5.5 · 70 RUNS · VS. THE SAME LOOP WITHOUT IT</text>
+<line x1="24" y1="379.0" x2="876" y2="379.0" stroke="#3a3a37" stroke-width="1"/>
+<text x="24" y="411.0" fill="#ffffff" font-size="14" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">Pruning old tool output (5 pairs)</text>
+<text x="24" y="453.0" fill="#ffffff" font-size="14" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">Memory of an earlier task (20 pairs)</text>
+<text x="262" y="82" fill="#ffffff" font-size="14" font-weight="600" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">Cost vs. baseline</text>
+<line x1="262.0" y1="129.0" x2="262.0" y2="346.0" stroke="#3a3a37" stroke-width="1"/>
+<line x1="262.0" y1="379.0" x2="262.0" y2="470.0" stroke="#3a3a37" stroke-width="1"/>
+<text x="262.0" y="488" fill="#c3c2b7" font-size="12" text-anchor="middle" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">0×</text>
+<line x1="316.0" y1="129.0" x2="316.0" y2="346.0" stroke="#3a3a37" stroke-width="1"/>
+<line x1="316.0" y1="379.0" x2="316.0" y2="470.0" stroke="#3a3a37" stroke-width="1"/>
+<text x="316.0" y="488" fill="#c3c2b7" font-size="12" text-anchor="middle" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">0.5×</text>
+<line x1="370.0" y1="129.0" x2="370.0" y2="346.0" stroke="#3a3a37" stroke-width="1"/>
+<line x1="370.0" y1="379.0" x2="370.0" y2="470.0" stroke="#3a3a37" stroke-width="1"/>
+<text x="370.0" y="488" fill="#c3c2b7" font-size="12" text-anchor="middle" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">1×</text>
+<line x1="424.0" y1="129.0" x2="424.0" y2="346.0" stroke="#3a3a37" stroke-width="1"/>
+<line x1="424.0" y1="379.0" x2="424.0" y2="470.0" stroke="#3a3a37" stroke-width="1"/>
+<text x="424.0" y="488" fill="#c3c2b7" font-size="12" text-anchor="middle" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">1.5×</text>
+<line x1="478.0" y1="129.0" x2="478.0" y2="346.0" stroke="#3a3a37" stroke-width="1"/>
+<line x1="478.0" y1="379.0" x2="478.0" y2="470.0" stroke="#3a3a37" stroke-width="1"/>
+<text x="478.0" y="488" fill="#c3c2b7" font-size="12" text-anchor="middle" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">2×</text>
+<line x1="532.0" y1="129.0" x2="532.0" y2="346.0" stroke="#3a3a37" stroke-width="1"/>
+<line x1="532.0" y1="379.0" x2="532.0" y2="470.0" stroke="#3a3a37" stroke-width="1"/>
+<text x="532.0" y="488" fill="#c3c2b7" font-size="12" text-anchor="middle" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">2.5×</text>
+<line x1="370.0" y1="129.0" x2="370.0" y2="346.0" stroke="#c3c2b7" stroke-width="1.5" stroke-dasharray="4 4"/>
+<line x1="370.0" y1="379.0" x2="370.0" y2="470.0" stroke="#c3c2b7" stroke-width="1.5" stroke-dasharray="4 4"/>
+<line x1="433.6" y1="157.0" x2="512.5" y2="157.0" stroke="#3987e5" stroke-width="2" stroke-linecap="round"/>
+<circle cx="474.3" cy="157.0" r="5" fill="#3987e5"/>
+<text x="520.5" y="161.0" fill="#ffffff" font-size="12" text-anchor="start" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">1.97×</text>
+<circle cx="370.0" cy="199.0" r="5" fill="#8b8a86"/>
+<line x1="349.3" y1="241.0" x2="375.6" y2="241.0" stroke="#3987e5" stroke-width="2" stroke-linecap="round"/>
+<circle cx="362.4" cy="241.0" r="5" fill="#3987e5"/>
+<text x="341.3" y="245.0" fill="#ffffff" font-size="12" text-anchor="end" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">0.93×</text>
+<line x1="336.4" y1="283.0" x2="357.8" y2="283.0" stroke="#3987e5" stroke-width="2" stroke-linecap="round"/>
+<circle cx="347.0" cy="283.0" r="5" fill="#3987e5"/>
+<text x="328.4" y="287.0" fill="#ffffff" font-size="12" text-anchor="end" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">0.79×</text>
+<line x1="312.4" y1="325.0" x2="334.0" y2="325.0" stroke="#3987e5" stroke-width="2" stroke-linecap="round"/>
+<circle cx="323.1" cy="325.0" r="5" fill="#3987e5"/>
+<text x="304.4" y="329.0" fill="#ffffff" font-size="12" text-anchor="end" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">0.57×</text>
+<line x1="366.5" y1="407.0" x2="414.2" y2="407.0" stroke="#3987e5" stroke-width="2" stroke-linecap="round"/>
+<circle cx="388.1" cy="407.0" r="5" fill="#3987e5"/>
+<text x="422.2" y="411.0" fill="#ffffff" font-size="12" text-anchor="start" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">1.17×</text>
+<line x1="358.7" y1="449.0" x2="379.0" y2="449.0" stroke="#3987e5" stroke-width="2" stroke-linecap="round"/>
+<circle cx="368.3" cy="449.0" r="5" fill="#3987e5"/>
+<text x="350.7" y="453.0" fill="#ffffff" font-size="12" text-anchor="end" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">0.98×</text>
+<text x="602" y="82" fill="#ffffff" font-size="14" font-weight="600" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">Plan score vs. baseline</text>
+<line x1="647.0" y1="129.0" x2="647.0" y2="346.0" stroke="#3a3a37" stroke-width="1"/>
+<line x1="647.0" y1="379.0" x2="647.0" y2="470.0" stroke="#3a3a37" stroke-width="1"/>
+<text x="647.0" y="488" fill="#c3c2b7" font-size="12" text-anchor="middle" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">-0.10</text>
+<line x1="737.0" y1="129.0" x2="737.0" y2="346.0" stroke="#3a3a37" stroke-width="1"/>
+<line x1="737.0" y1="379.0" x2="737.0" y2="470.0" stroke="#3a3a37" stroke-width="1"/>
+<text x="737.0" y="488" fill="#c3c2b7" font-size="12" text-anchor="middle" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">0</text>
+<line x1="827.0" y1="129.0" x2="827.0" y2="346.0" stroke="#3a3a37" stroke-width="1"/>
+<line x1="827.0" y1="379.0" x2="827.0" y2="470.0" stroke="#3a3a37" stroke-width="1"/>
+<text x="827.0" y="488" fill="#c3c2b7" font-size="12" text-anchor="middle" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">+0.10</text>
+<line x1="737.0" y1="129.0" x2="737.0" y2="346.0" stroke="#c3c2b7" stroke-width="1.5" stroke-dasharray="4 4"/>
+<line x1="737.0" y1="379.0" x2="737.0" y2="470.0" stroke="#c3c2b7" stroke-width="1.5" stroke-dasharray="4 4"/>
+<line x1="723.5" y1="157.0" x2="809.0" y2="157.0" stroke="#3987e5" stroke-width="2" stroke-linecap="round"/>
+<circle cx="768.5" cy="157.0" r="5" fill="#3987e5"/>
+<text x="817.0" y="161.0" fill="#ffffff" font-size="12" text-anchor="start" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">+0.04</text>
+<circle cx="737.0" cy="199.0" r="5" fill="#8b8a86"/>
+<line x1="664.2" y1="241.0" x2="791.0" y2="241.0" stroke="#3987e5" stroke-width="2" stroke-linecap="round"/>
+<circle cx="729.5" cy="241.0" r="5" fill="#3987e5"/>
+<text x="656.2" y="245.0" fill="#ffffff" font-size="12" text-anchor="end" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">-0.01</text>
+<line x1="683.0" y1="283.0" x2="760.2" y2="283.0" stroke="#3987e5" stroke-width="2" stroke-linecap="round"/>
+<circle cx="722.0" cy="283.0" r="5" fill="#3987e5"/>
+<text x="675.0" y="287.0" fill="#ffffff" font-size="12" text-anchor="end" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">-0.02</text>
+<line x1="726.5" y1="325.0" x2="836.8" y2="325.0" stroke="#3987e5" stroke-width="2" stroke-linecap="round"/>
+<circle cx="780.5" cy="325.0" r="5" fill="#3987e5"/>
+<text x="844.8" y="329.0" fill="#ffffff" font-size="12" text-anchor="start" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">+0.05</text>
+<line x1="737.0" y1="407.0" x2="845.0" y2="407.0" stroke="#3987e5" stroke-width="2" stroke-linecap="round"/>
+<circle cx="773.0" cy="407.0" r="5" fill="#3987e5"/>
+<text x="853.0" y="411.0" fill="#ffffff" font-size="12" text-anchor="start" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">+0.04</text>
+<line x1="684.5" y1="449.0" x2="767.0" y2="449.0" stroke="#3987e5" stroke-width="2" stroke-linecap="round"/>
+<circle cx="725.0" cy="449.0" r="5" fill="#3987e5"/>
+<text x="676.5" y="453.0" fill="#ffffff" font-size="12" text-anchor="end" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">-0.01</text>
+<text x="24" y="520" fill="#c3c2b7" font-size="12" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">Dots: paired estimates; lines: 95% bootstrap intervals. Each group has its own baseline; the groups differ in harness and model.</text>
+<text x="24" y="538" fill="#c3c2b7" font-size="12" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">Claude Code cost is its list-price estimate, not a subscription charge; own-loop cost is OpenRouter's charge. Details: docs/findings.md</text>
+</svg>

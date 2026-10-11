@@ -6,8 +6,8 @@ This repository holds a small context service built to test that, the
 benchmark harness, and every raw result.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/img/phase2-results-dark.svg">
-  <img alt="Cost and plan score of five context strategies relative to an agent exploring alone, from 300 Claude Code runs" src="docs/img/phase2-results-light.svg">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/img/results-dark.svg">
+  <img alt="Cost and plan score relative to a baseline: five context strategies from 300 Claude Code runs (Haiku 4.5), and pruning and cross-task memory from 70 runs of our own agent loop (Haiku 5.5)" src="docs/img/results-light.svg">
 </picture>
 
 ## What we tested
@@ -27,6 +27,12 @@ benchmark harness, and every raw result.
 - **Smaller follow-up checks** (10 runs each): compact excerpts, "trust the
   excerpts" instructions, and a sub-agent that does all the reading.
 - **Replays of the recordings** to see where the tokens actually go.
+- **Two ideas in our own agent loop** (Haiku 5.5 via OpenRouter, 70 runs,
+  $0.43 actually charged):
+  - **pruning**: removing old tool output from the agent's context as it
+    works;
+  - **memory across tasks**: agents save findings, each anchored to the file
+    lines that prove it, so a later task in the same area starts ahead.
 
 ## What we found
 
@@ -36,13 +42,18 @@ benchmark harness, and every raw result.
   disappeared into noise.
 - **Putting the whole project in the prompt doubled the cost** for, at most,
   a small quality gain. The project is re-sent on every turn.
-- **Most of the input cost is old tool output** (files the agent read earlier)
-  being re-sent with every later step. Replaying the recordings suggests that
-  pruning it in place could cut input tokens by a third to a half. That is
-  untested so far.
-- **Better search scores didn't automatically mean cheaper agents.** Compact
-  excerpts pointed to more of the right places, but the agent then opened
-  those files itself, so cost stayed the same.
+- **Pruning old tool output didn't save money** (cost ×1.17 over 5 pairs),
+  although replaying the Claude Code recordings had estimated −33% to −53%.
+  Haiku 5.5 works in few, wide steps, so little old output is re-sent;
+  pruned agents went back to re-read what was removed; and every edit forces
+  part of the cached context to be written again.
+- **Memory across tasks didn't save money either** (cost ×0.98, 95% interval
+  0.90–1.09, over 20 pairs). The findings were accurate and reached the next
+  agent, but it **opened 30 of the 36 files they cited anyway**.
+- **Agents re-read what they've already been given.** With the service, 35%
+  of what they read had already been served; with memory, most cited files
+  were opened again. Better search scores and good findings didn't change
+  that.
 - **A sub-agent doing all the reading was worse:** more tokens on every task,
   lower quality. Each call starts from scratch, and its summaries lose detail.
 - **Single runs are noisy** (about ×1.7 in tokens). Small checks can only
@@ -50,19 +61,20 @@ benchmark harness, and every raw result.
 
 ## What we think
 
-- **Retrieval helps, but the bigger lever is what stays in the agent's
-  context.** The next experiment is editing the context in place (removing
-  stale tool output), the idea behind Meta's Context Language Models and the
-  Claude API's context editing. Summarising context instead loses the
-  details agents need.
-- **How the agent is told to use a tool matters as much as the tool.**
-- **The service was designed for memory across tasks**: agents saving
-  verified findings so the next task starts ahead. A single-task benchmark
-  cannot show that; it is the obvious next benchmark.
-- **The evidence is narrow:** one synthetic project, one small model,
-  rubric-graded plans rather than executed code, and API-equivalent costs
-  (the CLI's list-price estimates, not subscription charges). Treat the
-  numbers as a careful first measurement.
+- **Asking for context helps, when the agent actually asks.** The one clear
+  saving came from the service used first; offering it was not enough.
+- **Estimates from recordings don't transfer across models.** The biggest
+  saving on paper (pruning) vanished on a newer model that works
+  differently. Measure before building on a replay.
+- **The bottleneck is trust, not retrieval.** Agents verify what they're
+  handed by reading the source again. That is reasonable for unreviewed
+  findings, and it means memory can only pay off once findings are reviewed
+  and agents are allowed to rely on them. That is the next thing worth
+  testing.
+- **The evidence is narrow:** one synthetic project, two small models,
+  rubric-graded plans rather than executed code, and small samples for the
+  newer checks. Claude Code figures are list-price estimates, not
+  subscription charges. Treat the numbers as careful first measurements.
 
 The full write-up is in [docs/findings.md](docs/findings.md); every run with
 its caveats is in [benchmarks/README.md](benchmarks/README.md).
@@ -97,12 +109,18 @@ uv run pytest
 uv run ctxo eval-retrieval benchmarks/tasks/hallpass.json
 uv run ctxo eval-agent benchmarks/tasks/hallpass.json --rubrics benchmarks/tasks/hallpass.rubrics.json --tasks H01 --strategies B2,C --service-args "--retrieval bm25 --hops 2"
 uv run ctxo analyze-agent benchmarks/results/<run>
-uv run python benchmarks/charts/phase2_chart.py benchmarks/results/20261011T032628Z-hallpass-agent
+uv sync --group loop
+uv run ctxo loop-eval prune benchmarks/tasks/hallpass.json --rubrics benchmarks/tasks/hallpass.rubrics.json --arms L,LP --tasks H17,H13,H11,H19,H09
+uv run python benchmarks/memory_analysis.py benchmarks/results/<memory-run>
+uv run python benchmarks/charts/results_chart.py
 ```
 
 `eval-retrieval` makes no model calls. `eval-agent` runs Claude Code and uses
-real usage, so start small. The published runs used `--retrieval hybrid`
-(needs Ollama); `bm25` works without it. Method:
+real usage, so start small. The published Claude Code runs used
+`--model haiku` (then Haiku 4.5) and `--retrieval hybrid` (needs Ollama);
+`bm25` works without it. `loop-eval` calls Claude Haiku 5.5 through
+OpenRouter with the key in a git-ignored `.env` (see `.env.example`), stops
+itself at an estimated $2, and records OpenRouter's charge per call. Method:
 [docs/benchmark-methodology.md](docs/benchmark-methodology.md). Design:
 [docs/architecture.md](docs/architecture.md). Plans: [ROADMAP.md](ROADMAP.md).
 

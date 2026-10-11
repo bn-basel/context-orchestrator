@@ -120,7 +120,7 @@ models, graders) is untested.
 - [x] Hybrid retrieval (BM25 + local embeddings) and follow-up hops, added
       once keyword search had demonstrably stalled.
 
-## Phase 4: pruning and memory in our own loop (built; runs pending)
+## Phase 4: pruning and memory in our own loop (done)
 
 - [x] Own agent loop with client-side pruning, measured usage and spending
       brakes (`ctxo loop-probe`, `ctxo loop-eval`).
@@ -128,7 +128,7 @@ models, graders) is untested.
       served before search results, flagged stale when the file changes.
 - [x] Five follow-up tasks with rubrics, committed before any run. Offline
       ceiling: one request's recall 0.24 → 0.45 with ideal parent memory.
-- [x] 4a: pruning check, 10 runs on Haiku 5.5 ($0.06): tokens ×0.95, cost ×1.17,
+- [x] 4a: pruning check, 10 runs on Haiku 5.5 ($0.07): tokens ×0.95, cost ×1.17,
       no saving. The model works in few, wide steps, and pruned agents re-read.
 - [x] 4b: memory check, 15 runs on Haiku 5.5 ($0.09): findings accurate and
       served; follow-ups ×0.80 tokens, ×0.89 cost (4 of 5 cheaper, mostly one
@@ -136,6 +136,9 @@ models, graders) is untested.
       pooled ×0.98. No saving: agents opened 30 of 36 cited files anyway.
 
 ## Next: candidates, in order of evidence
+
+- [ ] **Trusted memory**: human-reviewed findings that agents may rely on
+      without re-reading, and several follow-ups per parent task (reuse).
 - [ ] **Robustness**: a second model, a real open-source corpus, an
       independent label and rubric check, and a held-out task set.
 - [ ] **Several specialist agents sharing one store**, with per-agent
@@ -143,6 +146,7 @@ models, graders) is untested.
 
 ## Out of scope until evidence says otherwise
 
-Vector databases, distributed infrastructure, large agent frameworks, and
+Vector databases, distributed infrastructure, large agent frameworks,
 replacing retrieved context with summaries (phase 3d: summaries lost the
-details plans needed).
+details plans needed), and pruning on short tasks (phase 4a: no saving on
+Haiku 5.5).

@@ -604,8 +604,10 @@ fewer and vaguer findings, so this is a ceiling for a single request.
 ## Phase 4a result: pruning (run `20261011T071428Z-loop-prune`)
 
 Claude Haiku 5.5 in our own loop, 5 tasks × 2 arms × 1 run, as planned.
-**Total charge $0.059** (OpenRouter's reported charge; the list-price
-estimate matched it to the cent, and the key's usage counter agrees).
+**Total charge $0.067**: the sum of the charge OpenRouter reports in each
+response, which the list-price estimate matched exactly. (The key's usage
+counter, read right after the run, showed $0.059: it lags a few calls
+behind, so per-response charges are the figures used.)
 
 | Arm | Runs | Mean score | Median input tokens | Total cost (measured) | Median tool calls |
 |---|---|---|---|---|---|
@@ -641,7 +643,7 @@ price step), which these tasks never reached.
 
 Claude Haiku 5.5 in our own loop, as planned: 5 parent runs that record
 findings, then each follow-up task once on that memory (`SM`) and once on an
-empty one (`SM0`). 15 runs, **$0.086 measured**.
+empty one (`SM0`). 15 runs, **$0.093 measured** (sum of per-response charges).
 
 **The write path worked.** Every parent recorded 4 findings (20 in total,
 none rejected by the quote check). Read by hand they are accurate and
@@ -673,7 +675,7 @@ is reused, so a fair test needs several follow-ups per parent, or more pairs.
 ### Phase 4b replication: 3 more repetitions (run `20261011T073027Z-loop-memory`)
 
 The same design × 3 repetitions: 45 runs (15 parents, 30 follow-ups), no
-errors, **$0.271 measured**. The analysis script (`memory_analysis.py`:
+errors, **$0.274 measured**. The analysis script (`memory_analysis.py`:
 pairs = task × repetition, 10,000 bootstrap resamples) was committed while
 the runs were going, before their results were read.
 

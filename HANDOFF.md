@@ -3,8 +3,8 @@
 Development notes for resuming work in a new session. Keep them current:
 update at the end of every milestone and before a session's context runs out.
 
-**Last updated:** 2026-10-11. Phases 0–3d done; phase 4 built (runs pending); repository prepared for
-publication (still private); next direction open.
+**Last updated:** 2026-10-11. Phases 0–4 done and written up (README,
+docs/findings.md, chart); repository private until the owner decides.
 
 ## Resume prompt
 
@@ -22,47 +22,38 @@ Paste into a new session opened in the repository folder:
 | 1 / 1b / 1c Retrieval | done: realistic corpus (Hallpass, ~140k tokens, 20 tasks); best single-request recall 0.61 (hybrid + 2 hops); gate 1 (0.80) not passed |
 | 2 Agent comparison | done: 300 Haiku runs; service used first (B2) 0.79× cost vs exploring alone, no detectable quality loss; full context 2× cost |
 | 3a–3d | done: compact excerpts (no agent benefit), trace analysis (35% re-reads), what-if replay (pruning −33% to −53%, untested), reader sub-agent (worse) |
-| 4 Pruning + memory | 4a done: pruning gave no saving on Haiku 5.5 (cost ×1.17, 10 runs, $0.06); 4b memory: findings accurate and served, but no saving (cost ×0.98 pooled over 20 pairs; agents re-open cited files) |
-| Publication | README (tested / found / think), results chart (docs/img), findings, architecture; repository private until the owner decides |
+| 4 Pruning + memory | 4a done: pruning gave no saving on Haiku 5.5 (cost ×1.17, 10 runs, $0.07); 4b memory: findings accurate and served, but no saving (cost ×0.98 pooled over 20 pairs; agents re-open cited files) |
+| Publication | README (tested / found / think) and docs/findings.md cover phases 1–4; chart docs/img/results-{light,dark}.svg from benchmarks/charts/results_chart.py (phase 2 + phase 4 groups); repository private until the owner decides |
 
 The full story with numbers: [docs/findings.md](docs/findings.md); every run
 with caveats: [benchmarks/README.md](benchmarks/README.md).
 
-## Next step: phase 4 runs (built and committed; waiting for the owner's key)
+## Next step: open (phase 4 done)
 
-Everything for phase 4 is built and tested offline; plan and pre-selected
-tasks are in benchmarks/README.md ("Phase 4 plan"). Order:
+Phase 4 log (all in benchmarks/README.md, "Phase 4"):
 
-1. The owner creates an OpenRouter key **capped at $5** (limit set on
-   openrouter.ai) and pastes it into the repository's `.env` file
-   (`OPENROUTER_API_KEY=...`; git ignores `.env`, template in `.env.example`).
-   The environment variable of the same name also works and wins. Never ask
-   for the key in chat, and never open, print or copy `.env`. Subscription
-   logins can't drive our own loop (Anthropic's terms limit them to Claude
-   Code).
-2. `uv sync --group loop`, then `uv run ctxo loop-probe` (one tiny call):
-   check that the model id resolves, usage includes cache fields, the
-   measured cost lookup works and the key shows a limit.
-3. ~~4a pruning, 10 runs~~ **done** (run `20261011T071428Z-loop-prune`,
-   $0.059 measured): tokens ×0.95, cost ×1.17, no quality change. Haiku 5.5
-   works in few, wide steps, so there is little to prune, and pruned agents
-   re-read. Not scaled. Always **Claude Haiku 5.5** (`anthropic/claude-haiku-5.5`);
-   the owner said never to use Haiku 4.5. Probe confirmed: key limit $5,
-   OpenRouter reports the charge inside each response's usage.
-4. ~~4b memory, 15 runs~~ **done** (run `20261011T072205Z-loop-memory`,
-   $0.086): 20 findings recorded, none rejected, accurate; follow-ups with
-   memory ×0.80 tokens, ×0.89 cost, score −0.03; mostly one task (F07).
-   Suggestive only. **Replication** (run `20261011T073027Z-loop-memory`,
-   45 runs, $0.27): cost ×1.02 [0.92–1.14], pooled ×0.98 [0.90–1.09]; no
-   saving. Agents opened 30 of 36 files the findings cited anyway.
-   Spent on the key so far: $0.43 of $5.
-5. Only after a clear signal: more runs, or hybrid retrieval for findings.
+- Probe confirmed the OpenRouter key (limit $5; the key is in the
+  git-ignored `.env`, never open or print it) and that OpenRouter reports
+  the charge inside each response's usage. Use **Claude Haiku 5.5** only
+  (`anthropic/claude-haiku-5.5`); the owner said never to use Haiku 4.5.
+- 4a pruning (run `20261011T071428Z-loop-prune`, 10 runs, $0.067): tokens
+  ×0.95, cost ×1.17. No saving; not scaled.
+- 4b memory (runs `20261011T072205Z-loop-memory`, 15 runs, $0.093, and
+  `20261011T073027Z-loop-memory`, 45 runs, $0.274): pooled over 20 pairs,
+  cost ×0.98 [0.90–1.09], scores equal. Findings were accurate, but agents
+  opened 30 of 36 cited files anyway.
+- Spent on the key: $0.43 of $5 (sum of per-response charges; the key's own
+  usage counter lags a few calls behind, so don't read totals from it).
 
-Other candidates: robustness (a second model, a real open-source corpus, an
-independent label and rubric check). A "file map" for targeted reads was
-estimated at most −8% and not run. The original 20 tasks barely share needed
-context (at most 1 labelled section per pair), which is why 4b has its own
-follow-up tasks.
+Candidates, if the owner wants more:
+
+1. **Trusted memory** (~15–30 runs, ~$0.10–0.20): findings marked reviewed
+   by a person, agents told reviewed ones need no re-checking; ideally
+   several follow-ups per parent so reuse can pay for recording.
+2. **Robustness:** a real open-source corpus, a larger model, longer tasks,
+   an independent label and rubric check.
+3. **Publication:** the owner plans to post on GitHub and social media; ask
+   before making the repository public.
 
 ## Rules for experiments
 
