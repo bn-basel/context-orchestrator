@@ -22,7 +22,7 @@ Paste into a new session opened in the repository folder:
 | 1 / 1b / 1c Retrieval | done: realistic corpus (Hallpass, ~140k tokens, 20 tasks); best single-request recall 0.61 (hybrid + 2 hops); gate 1 (0.80) not passed |
 | 2 Agent comparison | done: 300 Haiku runs; service used first (B2) 0.79× cost vs exploring alone, no detectable quality loss; full context 2× cost |
 | 3a–3d | done: compact excerpts (no agent benefit), trace analysis (35% re-reads), what-if replay (pruning −33% to −53%, untested), reader sub-agent (worse) |
-| Publication | README, docs/findings.md and architecture rewritten; repository private until the owner decides |
+| Publication | README (tested / found / think), results chart (docs/img), findings, architecture; repository private until the owner decides |
 
 The full story with numbers: [docs/findings.md](docs/findings.md); every run
 with caveats: [benchmarks/README.md](benchmarks/README.md).
@@ -35,6 +35,9 @@ forward"):
 1. **In-place context pruning** with an agent loop that can edit its own
    context (Claude API context editing, `clear_tool_uses`). Largest estimated
    saving. Needs API access with usage billing, which the owner must approve.
+   **Blocked (2026-10-11):** no API credentials on the machine; the owner
+   must create an API key and set `ANTHROPIC_API_KEY` themselves.
+   (A "file map" for targeted reads was estimated at most -8% and not run.)
 2. **Multi-task benchmark** with a memory write path: agents record verified
    findings so later tasks on the same project start ahead.
 3. **Robustness:** a second model, a real open-source corpus, an independent
