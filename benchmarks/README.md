@@ -1,5 +1,10 @@
 # Benchmarks
 
+> **Commit IDs.** The repository's history was rewritten on 2026-10-11 to remove a
+> personal email address, which changed every commit ID. Run records cite the
+> original IDs; [`docs/commit-map.txt`](../docs/commit-map.txt) maps them to the new
+> ones. Commit dates, messages and order are unchanged.
+
 ```
 benchmarks/
   tasks/<suite>.json      task suites: tasks + hand-labelled relevant / forbidden line ranges

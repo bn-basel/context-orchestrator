@@ -72,6 +72,11 @@ Candidates, if the owner wants more:
 
 ## Facts learned the hard way
 
+- **History was rewritten on 2026-10-11** (before going public) to replace
+  the personal commit email with the GitHub no-reply address. Run records cite
+  the old commit IDs; `docs/commit-map.txt` maps them. Commit as `bn-basel`
+  with that no-reply address (this repository's local git config).
+
 - `claude -p --output-format json` reports per-model input, output,
   cache-read, cache-write and thinking tokens, plus `costUSD` with
   `costBasis: "list"`: an API-price equivalent, **not** a subscription charge.
