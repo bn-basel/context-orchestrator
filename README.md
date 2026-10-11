@@ -95,10 +95,12 @@ from context_orchestrator import ContextService, ContextRequest, InfoKind
 
 with ContextService("examples/sample_project") as svc:
     svc.ingest()
-    package = svc.request(ContextRequest(
-        task="Cap overdue fines at the book's replacement cost",
-        kinds=[InfoKind.DECISION, InfoKind.CONSTRAINT, InfoKind.CODE],
-    ))
+    package = svc.request(
+        ContextRequest(
+            task="Cap overdue fines at the book's replacement cost",
+            kinds=[InfoKind.DECISION, InfoKind.CONSTRAINT, InfoKind.CODE],
+        )
+    )
     print(package.render_markdown())
 ```
 
