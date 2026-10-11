@@ -130,7 +130,9 @@ models, graders) is untested.
       ceiling: one request's recall 0.24 → 0.45 with ideal parent memory.
 - [x] 4a: pruning check, 10 runs on Haiku 5.5 ($0.06): tokens ×0.95, cost ×1.17,
       no saving. The model works in few, wide steps, and pruned agents re-read.
-- [ ] 4b: memory check, 15 runs.
+- [x] 4b: memory check, 15 runs on Haiku 5.5 ($0.09): findings accurate and
+      served; follow-ups ×0.80 tokens, ×0.89 cost (4 of 5 cheaper, mostly one
+      task), score −0.03. Suggestive, not shown; needs more pairs or reuse.
 
 ## Next: candidates, in order of evidence
 - [ ] **Robustness**: a second model, a real open-source corpus, an

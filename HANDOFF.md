@@ -22,7 +22,7 @@ Paste into a new session opened in the repository folder:
 | 1 / 1b / 1c Retrieval | done: realistic corpus (Hallpass, ~140k tokens, 20 tasks); best single-request recall 0.61 (hybrid + 2 hops); gate 1 (0.80) not passed |
 | 2 Agent comparison | done: 300 Haiku runs; service used first (B2) 0.79× cost vs exploring alone, no detectable quality loss; full context 2× cost |
 | 3a–3d | done: compact excerpts (no agent benefit), trace analysis (35% re-reads), what-if replay (pruning −33% to −53%, untested), reader sub-agent (worse) |
-| 4 Pruning + memory | 4a done: pruning gave no saving on Haiku 5.5 (cost ×1.17, 10 runs, $0.06); 4b memory built (anchored findings, 5 follow-up tasks, offline ceiling recall 0.24 → 0.45), 15 runs pending approval |
+| 4 Pruning + memory | 4a done: pruning gave no saving on Haiku 5.5 (cost ×1.17, 10 runs, $0.06); 4b memory: findings accurate and served, follow-ups ×0.89 cost (15 runs, $0.09), suggestive only |
 | Publication | README (tested / found / think), results chart (docs/img), findings, architecture; repository private until the owner decides |
 
 The full story with numbers: [docs/findings.md](docs/findings.md); every run
@@ -49,8 +49,10 @@ tasks are in benchmarks/README.md ("Phase 4 plan"). Order:
    re-read. Not scaled. Always **Claude Haiku 5.5** (`anthropic/claude-haiku-5.5`);
    the owner said never to use Haiku 4.5. Probe confirmed: key limit $5,
    OpenRouter reports the charge inside each response's usage.
-4. **4b memory, 15 runs** (5 parent runs, 5 follow-ups on memory, 5 on an
-   empty one). Similar cost per run.
+4. ~~4b memory, 15 runs~~ **done** (run `20261011T072205Z-loop-memory`,
+   $0.086): 20 findings recorded, none rejected, accurate; follow-ups with
+   memory ×0.80 tokens, ×0.89 cost, score −0.03; mostly one task (F07).
+   Suggestive only. Spent so far on the key: ~$0.15 of $5.
 5. Only after a clear signal: more runs, or hybrid retrieval for findings.
 
 Other candidates: robustness (a second model, a real open-source corpus, an

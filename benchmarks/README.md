@@ -636,3 +636,36 @@ to this model and harness. 5 pairs can only show large effects, and none
 showed in the direction of a saving, so pruning is **not scaled up**. It
 might still pay on much longer runs (contexts above Haiku 5.5's 100k-token
 price step), which these tasks never reached.
+
+## Phase 4b result: memory across tasks (run `20261011T072205Z-loop-memory`)
+
+Claude Haiku 5.5 in our own loop, as planned: 5 parent runs that record
+findings, then each follow-up task once on that memory (`SM`) and once on an
+empty one (`SM0`). 15 runs, **$0.086 measured**.
+
+**The write path worked.** Every parent recorded 4 findings (20 in total,
+none rejected by the quote check). Read by hand they are accurate and
+specific (the cause of HP-503 with line ranges, the refund preview ignoring
+the flag, the 60-second flag cache, that `staff_users.last_login_at` already
+exists). Several flag docs that are out of date against the code, and two
+point at real call mismatches in the corpus. Every `SM` follow-up got 3
+findings in its first `request_context` answer.
+
+| Follow-up arm | Runs | Mean score | Median input tokens | Total cost (measured) | Median tool calls |
+|---|---|---|---|---|---|
+| SM0, empty memory | 5 | 0.97 | 144k | $0.036 | 19 |
+| SM, parent's memory | 5 | 0.93 | 125k | $0.031 | 17 |
+
+Paired per task (geometric mean): **input tokens ×0.80, cost ×0.89**, score
+−0.03 (F01 with memory missed one check: that renewal computes from the
+series' original first date). Per-task cost ratios: F01 ×1.27, F05 ×0.85,
+F07 ×0.66, F10 ×0.92, F12 ×0.85.
+
+**Reading it honestly.** Four of five follow-ups were cheaper with memory,
+but most of the saving comes from one task (F07, where the run without
+memory wandered: 19 model calls and 429k tokens). Without F07 the cost ratio
+is about ×0.96. With single runs varying about ×1.7, 5 pairs cannot separate
+a 10–20% effect from noise. The parent runs' extra cost for recording
+findings (4 calls each) was not isolated, so it is not netted out here; for
+a single follow-up it would likely eat the saving. Memory pays only if it
+is reused, so a fair test needs several follow-ups per parent, or more pairs.
