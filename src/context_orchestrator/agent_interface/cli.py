@@ -96,6 +96,10 @@ def _build_parser() -> argparse.ArgumentParser:
         help="store task text and query terms in telemetry (off by default)",
     )
 
+    tr = sub.add_parser("analyze-traces", help="what agents read in an eval-agent run")
+    tr.add_argument("run_dir", type=Path)
+    tr.add_argument("--suite", type=Path, required=True)
+
     an = sub.add_parser("analyze-agent", help="paired analysis of an eval-agent run folder")
     an.add_argument("run_dir", type=Path)
 
@@ -188,6 +192,17 @@ def main(argv: list[str] | None = None) -> int:
         format="%(levelname)s %(name)s: %(message)s",
         stream=sys.stderr,
     )
+    if args.command == "analyze-traces":
+        from context_orchestrator.evaluation.retrieval_eval import load_suite
+        from context_orchestrator.evaluation.trace_analysis import write_trace_analysis
+
+        try:
+            out = write_trace_analysis(args.run_dir, load_suite(args.suite))
+        except (OSError, ValueError, KeyError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        print(out.read_text(encoding="utf-8"))
+        return 0
     if args.command == "analyze-agent":
         from context_orchestrator.evaluation.agent_analysis import write_analysis
 

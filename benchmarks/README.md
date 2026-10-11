@@ -374,3 +374,48 @@ asked once and then opened the files itself, which costs about the same. The
 higher recall of compact packages is "points at the right place", and the
 agent pays to follow each pointer. Full packages stay the default; compact
 mode remains available (`--detail compact`).
+
+## Phase 3b: what agents actually read (no model calls)
+
+`ctxo analyze-traces` re-reads the 300 raw streams of the phase 2 run and
+classifies every file read against (1) what the context service had returned
+*before* that read and (2) the task's labelled ranges. Output:
+`results/20261011T032628Z-hallpass-agent/traces.md` and `traces.json`.
+"Carried" context weights each tool result by the number of later tool calls,
+because it is re-sent with each: a proxy for input-token cost.
+
+| | B2 (service, used first) | B (offered) | C (file tools only) |
+|---|---|---|---|
+| File reads per run | **5.4** | 8.9 | 10.5 |
+| Characters read per run | **22.6k** | 36.2k | 44.6k |
+| Read volume: already served by the service | **35%** | 8% | n/a |
+| Read volume: needed, not served (recovering misses) | 25% | 42% | 45% (needed) |
+| Read volume: unrelated | 38% | 50% | 55% |
+| Carried context: file reads / service answers | 50% / **39%** | 68% / 15% | 83% / n/a |
+| Labelled ranges: served / read only / never seen | 33% / 30% / 37% | 18% / 55% / 27% | 0% / 72% / 28% |
+
+Mean score by how many labelled ranges the agent never saw (0 / 1 / 2+):
+B 0.91 / 0.84 / 0.72; B2 0.90 / 0.80 / 0.78; C 0.83 / 0.85 / 0.76.
+
+What this says about B2's cost:
+
+1. **The saving is real reading avoided.** B2 agents open half as many files
+   as C and read half as much text.
+2. **A third of what B2 still reads, it already had.** 35% of its read volume
+   re-opens ranges the service had returned, 70% of the time as a whole-file
+   read, spread across the run. The agent takes the excerpt, then opens the
+   whole file around it later.
+3. **The service's answers are a large share of the cost.** 39% of B2's
+   carried context is package text, re-sent on every later turn. Package
+   text and later file reads overlap.
+4. **Missing pieces still cost quality.** Runs that never saw 2+ needed ranges
+   score lower in every strategy, so recall matters for quality as well.
+
+Caveats: "served" means the read overlaps a returned range; a whole-file read
+counts even if the agent wanted another part of the file. Labels are one
+annotator's view of "needed". Coverage is n/a for A and D, which received
+their context in the prompt.
+
+Implications for the next change (to test with ~10 runs): tell the agent the
+excerpts are verbatim with exact line ranges, so it opens files only for
+parts not shown; and/or shrink packages, since they are re-sent every turn.
