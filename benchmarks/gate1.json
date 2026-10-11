@@ -1,0 +1,18 @@
+{
+  "gate": "gate1",
+  "question": "Does retrieval find the right context well enough to be worth testing with a model (phase 2)?",
+  "decided": "2026-10-11, before the first evaluator run",
+  "criteria": [
+    {"id": "C1", "metric": "mean_recall", "op": ">=", "value": 0.80,
+     "why": "If retrieval misses more than a fifth of the needed context, strategy B starts phase 2 handicapped."},
+    {"id": "C2", "metric": "forbidden_returned", "op": "==", "value": 0,
+     "why": "Superseded decisions must never reach an agent unasked."},
+    {"id": "C3", "metric": "unresolved_misses", "op": "==", "value": 0,
+     "why": "Every requested kind that has no content must be reported, not silently empty."},
+    {"id": "C4", "metric": "status_mismatches", "op": "==", "value": 0,
+     "why": "Assumptions must arrive labelled as assumptions."},
+    {"id": "C5", "metric": "mean_package_to_corpus_ratio", "op": "<=", "value": 0.50,
+     "why": "A package as large as the corpus offers nothing over full context."}
+  ],
+  "caveat": "The sample corpus is tiny (18 files). Passing here is necessary, not sufficient: phase 2 needs a larger corpus before its results mean much."
+}

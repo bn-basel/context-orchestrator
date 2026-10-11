@@ -1,0 +1,117 @@
+{
+  "schema_version": 1,
+  "suite": "sample_project",
+  "project": "../../examples/sample_project",
+  "description": "Phase 1 retrieval benchmark on the Shelfwise fixture. Labels mark the minimal line ranges an agent needs to see to do the task correctly. Labels and gate criteria were committed before the evaluator was first run. Caveat: T01's retrieval output was seen during phase 0 development.",
+  "tasks": [
+    {
+      "id": "T01",
+      "category": "bugfix",
+      "task": "Fix BUG-12 so a book returned one hour late is not charged a full day's fine",
+      "kinds": ["known_issue", "code", "test", "decision"],
+      "relevant": [
+        {"path": "docs/known-issues.md", "lines": [7, 11], "note": "the bug report"},
+        {"path": "src/shelfwise/loans.py", "lines": [32, 40], "note": "days_overdue, the faulty function"},
+        {"path": "docs/decisions/0003-timestamps-in-utc.md", "lines": [8, 11], "note": "due dates are UTC end-of-day"},
+        {"path": "tests/test_fines.py", "lines": [19, 21], "note": "existing per-day fine test"}
+      ]
+    },
+    {
+      "id": "T02",
+      "category": "bugfix",
+      "task": "Fix BUG-15: when an overdue loan is renewed, keep the fine that had already accrued instead of clearing it",
+      "kinds": ["known_issue", "code", "schema"],
+      "relevant": [
+        {"path": "docs/known-issues.md", "lines": [13, 15], "note": "the bug report"},
+        {"path": "src/shelfwise/loans.py", "lines": [49, 54], "note": "renew"},
+        {"path": "src/shelfwise/fines.py", "lines": [12, 15], "note": "calculate_fine"},
+        {"path": "db/schema.sql", "lines": [18, 26], "note": "loans table"}
+      ]
+    },
+    {
+      "id": "T03",
+      "category": "adr_constrained_feature",
+      "task": "Add a function that splits an outstanding fine into equal instalments for a member who pays in parts",
+      "kinds": ["decision", "code", "convention"],
+      "relevant": [
+        {"path": "docs/decisions/0004-store-money-as-integer-cents.md", "lines": [13, 16], "note": "money is integer cents"},
+        {"path": "docs/decisions/0004-store-money-as-integer-cents.md", "lines": [18, 20], "note": "integer division, round half up"},
+        {"path": "src/shelfwise/fines.py", "lines": [18, 20], "note": "outstanding_fine"},
+        {"path": "docs/conventions.md", "lines": [13, 15], "note": "_cents naming"}
+      ]
+    },
+    {
+      "id": "T04",
+      "category": "schema",
+      "task": "Write a query that lists every member's active loans with their due dates",
+      "kinds": ["schema", "decision"],
+      "relevant": [
+        {"path": "db/schema.sql", "lines": [3, 8], "note": "members table"},
+        {"path": "db/schema.sql", "lines": [18, 26], "note": "loans table"},
+        {"path": "db/schema.sql", "lines": [35, 35], "note": "active-loans index"},
+        {"path": "docs/decisions/0003-timestamps-in-utc.md", "lines": [8, 11], "note": "due dates stored as UTC"}
+      ]
+    },
+    {
+      "id": "T05",
+      "category": "superseded_trap",
+      "task": "Show the monthly total of fines collected, formatted in dollars, on the staff report",
+      "kinds": ["decision", "code", "schema"],
+      "relevant": [
+        {"path": "docs/decisions/0004-store-money-as-integer-cents.md", "lines": [13, 16], "note": "integer cents, use money helpers"},
+        {"path": "src/shelfwise/money.py", "lines": [14, 17], "note": "format_cents"},
+        {"path": "db/schema.sql", "lines": [28, 33], "note": "fine_payments table"}
+      ],
+      "forbidden": [
+        {"path": "docs/decisions/0002-store-fines-as-float-dollars.md", "lines": [7, 14], "note": "superseded float-dollars decision"}
+      ]
+    },
+    {
+      "id": "T06",
+      "category": "assumption_trap",
+      "task": "Enforce the maximum number of active loans a member may hold",
+      "kinds": ["constraint", "code", "test"],
+      "relevant": [
+        {"path": "docs/assumptions.md", "lines": [7, 9], "note": "loan limit is an unconfirmed assumption", "expected_status": "assumption"},
+        {"path": "src/shelfwise/loans.py", "lines": [11, 12], "note": "MAX_ACTIVE_LOANS constant"},
+        {"path": "src/shelfwise/loans.py", "lines": [26, 29], "note": "borrow"},
+        {"path": "tests/test_loans.py", "lines": [16, 18], "note": "existing limit test"}
+      ]
+    },
+    {
+      "id": "T07",
+      "category": "vocabulary_mismatch",
+      "task": "Waive the penalty for patrons who bring items back shortly after the deadline",
+      "kinds": ["constraint", "code"],
+      "relevant": [
+        {"path": "docs/assumptions.md", "lines": [11, 13], "note": "grace period assumption", "expected_status": "assumption"},
+        {"path": "docs/constraints.md", "lines": [11, 12], "note": "daily fine rate"},
+        {"path": "src/shelfwise/loans.py", "lines": [32, 40], "note": "days_overdue"},
+        {"path": "src/shelfwise/fines.py", "lines": [12, 15], "note": "calculate_fine"}
+      ]
+    },
+    {
+      "id": "T08",
+      "category": "conventions",
+      "task": "Write tests for the money parsing helper following the project's test conventions",
+      "kinds": ["convention", "code", "test"],
+      "relevant": [
+        {"path": "docs/conventions.md", "lines": [17, 20], "note": "test conventions"},
+        {"path": "src/shelfwise/money.py", "lines": [6, 11], "note": "parse_cents"}
+      ]
+    },
+    {
+      "id": "T09",
+      "category": "missing_information",
+      "task": "Check previously verified findings about rounding errors in fine totals",
+      "kinds": ["finding", "decision"],
+      "relevant": [
+        {"path": "docs/decisions/0004-store-money-as-integer-cents.md", "lines": [9, 11], "note": "why floats were dropped"}
+      ],
+      "forbidden": [
+        {"path": "docs/decisions/0002-store-fines-as-float-dollars.md", "lines": [7, 14], "note": "superseded decision"}
+      ],
+      "expected_unresolved": ["finding"]
+    }
+  ]
+}
