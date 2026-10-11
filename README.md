@@ -9,12 +9,13 @@ tests, known bugs) and answers **structured context requests** with a compact,
 needs; the service says where every piece came from, how far it can be
 trusted, and what it could not find.
 
-> **Status: early experiment (v0.1).** The retrieval pipeline works end to end
-> and is tested. Whether this approach actually saves tokens or improves task
-> quality compared with handing an agent the full context is **not yet
-> measured**. The repository is built so that question can be tested; see
-> [docs/benchmark-methodology.md](docs/benchmark-methodology.md). No benchmark
-> results are claimed here.
+> **Status: early experiment.** The retrieval pipeline works end to end and is
+> tested. Retrieval quality has been measured once, on a small synthetic
+> corpus (recall 0.83, precision 0.40; details and caveats in
+> [benchmarks/README.md](benchmarks/README.md)). Whether this approach saves
+> tokens or improves task quality compared with handing an agent the full
+> context is **not yet measured**; see
+> [docs/benchmark-methodology.md](docs/benchmark-methodology.md).
 
 ## The problem
 
@@ -171,6 +172,12 @@ uv run pytest
 uv run ruff check .
 ```
 
+Retrieval benchmark (phase 1, no model calls):
+
+```bash
+uv run ctxo eval-retrieval benchmarks/tasks/sample_project.json --gate benchmarks/gate1.json
+```
+
 The tests run the whole pipeline against
 [`examples/sample_project`](examples/sample_project), a synthetic library
 lending service with ADRs (one superseded), a schema, conventions, a
@@ -189,9 +196,9 @@ constraint, a recorded assumption, known bugs, code and tests. It contains no
   planned integration.
 - **No memory write path yet.** Agents cannot record findings; the knowledge
   base changes only by editing files and re-ingesting.
-- **No benchmark runner or results yet.** The methodology is written down,
-  and Claude Code usage parsing exists and is tested, but no comparison has
-  been run.
+- **No agent comparison yet.** Only retrieval has been measured (phase 1),
+  on a corpus too small for token savings to matter. The full-context vs.
+  retrieval comparison with a model (phase 2) has not been run.
 - Status labels are only as good as the front matter people write.
 
 See [ROADMAP.md](ROADMAP.md) for what is implemented and what is planned.
@@ -206,8 +213,9 @@ src/context_orchestrator/
   orchestrator/       request → package pipeline
   agent_interface/    Python API (ContextService) and CLI (ctxo)
   telemetry/          JSONL events
-  evaluation/         usage parsing for `claude -p` results
+  evaluation/         retrieval scoring, `claude -p` usage parsing
 tests/                unit and end-to-end tests
+benchmarks/           labelled task suites, gate criteria, raw run results
 examples/             sample project and example requests
 docs/                 architecture and benchmark methodology
 ```

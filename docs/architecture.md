@@ -23,7 +23,7 @@ the evaluation shows a need for it.
 | `orchestrator` | Request → package: per-kind retrieval, budget, staleness, gaps | `ContextOrchestrator` |
 | `agent_interface` | What agents call: Python facade and `ctxo` CLI | `ContextService`, `cli.main` |
 | `telemetry` | One JSONL event per request; privacy-preserving defaults | `JsonlTelemetry`, `context_request_event` |
-| `evaluation` | Benchmark support; currently `claude -p` usage parsing | `parse_claude_cli_result`, `RunUsage` |
+| `evaluation` | Retrieval scoring against labelled tasks; `claude -p` usage parsing | `load_suite`, `run_suite`, `parse_claude_cli_result` |
 
 Dependencies point one way: `agent_interface → orchestrator → retrieval →
 memory → models`, with `telemetry` used by the orchestrator. `models` imports
@@ -72,7 +72,7 @@ Each chunk carries a `status`: `verified`, `observed`, `unverified`,
 `assumption` or `superseded`. Source files are `observed`: they show what
 exists, not that it is right. Superseded decisions are omitted with a reason,
 and assumptions are flagged in `notes`. If a requested kind has no match, the
-package says so in `unresolved`. The service has no code path that generates
+package says so in `unresolved` (and, machine-readably, in `unresolved_kinds`). The service has no code path that generates
 text.
 
 ### D6. Staleness by hash

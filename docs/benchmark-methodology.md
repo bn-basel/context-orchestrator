@@ -1,7 +1,19 @@
 # Benchmark methodology
 
-Status: **design only; no runs yet.** This document fixes the method before
-any results exist, so the results cannot shape the method.
+Status: the retrieval-only stage (phase 1) has run; the agent comparison
+(phase 2) is **design only, no runs yet**. This document fixes the method
+before results exist, so the results cannot shape the method.
+
+## Stage 1: retrieval-only evaluation (implemented)
+
+Before spending model calls, retrieval is scored on its own against
+hand-labelled tasks: recall and precision over labelled line ranges, rank
+of the first relevant item, superseded items returned, missing kinds
+reported, and assumption labels preserved. Labels and gate criteria
+([benchmarks/gate1.json](../benchmarks/gate1.json)) are committed before
+the evaluator runs. Results and caveats: [benchmarks/README.md](../benchmarks/README.md).
+
+The rest of this document describes stage 2, the agent comparison.
 
 ## Question
 
