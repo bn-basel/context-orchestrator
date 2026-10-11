@@ -52,6 +52,10 @@
         "mean": 0.2373,
         "median": 0.1267
       },
+      "targeted_reads_2k": {
+        "mean": -0.0109,
+        "median": 0.0
+      },
       "complete_first_answer": {
         "mean": -0.0411,
         "median": 0.0
@@ -85,6 +89,10 @@
       "whole_files_32k": {
         "mean": 0.5921,
         "median": 0.5252
+      },
+      "targeted_reads_2k": {
+        "mean": -0.0768,
+        "median": -0.0288
       },
       "complete_first_answer": {
         "mean": -0.0485,

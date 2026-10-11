@@ -461,6 +461,7 @@ exists, so A is excluded.
 | Service returns whole files ≤ 4k chars | +7% | +20% | n/a | n/a |
 | Service returns whole files ≤ 8k chars | +18% | +45% | n/a | n/a |
 | First answer already holds what the agent later went to find | −4% | −5% | n/a | n/a |
+| Whole-file re-reads of served files become ~50-line reads (a "file map") | −1% | −8% | n/a | n/a |
 | Prune each tool result after 10 more calls | −19% | −13% | −16% | −3% |
 | Prune each tool result after 5 more calls | −45% | −33% | −40% | −10% |
 | Prune each tool result after 3 more calls | −59% | −48% | −53% | −15% |
@@ -475,6 +476,9 @@ What this says:
    re-sent every turn, which outweighs the re-reads it saves.
 2. **Better first answers save little directly** (≈5%). Retrieval quality
    matters more for plan quality than for tokens.
+   A "file map" letting the agent read only the lines it needs would save at
+   most ~8% for B2 (added later): below what small agent checks can detect,
+   so it was not run.
 3. **In-place pruning of old tool output is by far the largest lever**:
    about a third to a half of input tokens with a 3–5 call window. This is
    the idea behind Meta's Context Language Models (agents editing their own

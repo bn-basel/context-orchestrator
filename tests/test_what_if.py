@@ -56,3 +56,14 @@ def test_cost_model_recovers_known_coefficients() -> None:
     model = fit_cost_model(traces, tokens)
     assert abs(model["per_call_tokens"] - 3000) < 1e-6
     assert abs(model["tokens_per_carried_char"] - 0.5) < 1e-9
+
+
+def test_targeted_reads_shrinks_whole_file_rereads_of_served_files() -> None:
+    from context_orchestrator.evaluation.what_if import targeted_reads
+
+    service = Call(SERVICE_TOOL, None, None, 300, served=[("a.py", 1, 2)])
+    whole = Call("Read", "a.py", None, 5000)
+    ranged = Call("Read", "a.py", (1, 10), 5000)  # already targeted: unchanged
+    other = Call("Read", "b.py", None, 5000)  # not served: unchanged
+    trace = _trace([service, whole, ranged, other])
+    assert targeted_reads(trace, 2000) == -(5000 - 2000) * 3

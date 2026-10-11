@@ -23,6 +23,9 @@ Policies:
   labelled ranges the agent later read for itself. Saves those reads; costs
   the range text from the first service call onwards. (An upper bound for
   better retrieval or better follow-up answers.)
+* ``targeted_reads`` - whole-file re-reads of files the service pointed to
+  become ~50-line reads (a "file map" letting the agent read only what it
+  needs). Upper bound.
 * ``prune_after(K)`` - every tool result is replaced by a one-line stub after
   K further tool calls (in-place context editing). Saves the rest of its
   carried text; costs a re-read whenever the agent opens the same file again
@@ -127,6 +130,28 @@ def complete_first_answer(trace: RunTrace, labels: list, project: Path, cache: d
     return delta
 
 
+def targeted_reads(trace: RunTrace, max_chars: int = 2000) -> int:
+    """Whole-file re-reads of files the service had pointed to become ~50-line reads.
+
+    Upper bound for a "file map" (outline with line ranges) that lets the agent read
+    only the part it needs.
+    """
+    delta = 0
+    served_paths: set[str] = set()
+    n = len(trace.calls)
+    for i, call in enumerate(trace.calls):
+        if call.tool == SERVICE_TOOL:
+            served_paths |= {p for p, _, _ in call.served}
+        elif (
+            call.tool == "Read"
+            and call.span is None
+            and call.path in served_paths
+            and call.result_chars > max_chars
+        ):
+            delta -= (call.result_chars - max_chars) * (n - i)
+    return delta
+
+
 def prune_after(trace: RunTrace, k: int) -> int:
     n = len(trace.calls)
     delta = 0
@@ -181,6 +206,7 @@ def estimate(run_dir: Path, suite: TaskSuite) -> dict[str, Any]:
                 out[f"whole_files_{threshold // 1000}k"] = token_change(
                     rows, lambda t, th=threshold: whole_files(t, suite.project, th, cache)
                 )
+            out["targeted_reads_2k"] = token_change(rows, lambda t: targeted_reads(t, 2000))
             out["complete_first_answer"] = token_change(
                 rows, lambda t: complete_first_answer(t, labels[t.task_id], suite.project, cache)
             )
