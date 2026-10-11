@@ -532,10 +532,11 @@ Claude Code decides what stays in its context, so pruning cannot be tested
 through it. Phase 4 uses a small agent loop of our own
 (`evaluation/own_loop.py`): read-only `read_file` / `grep` / `glob`,
 optionally `request_context` (keyword retrieval with two hops) and
-`record_finding`, calling Haiku 4.5 through OpenRouter's Anthropic-compatible
-API with the Anthropic provider pinned. **Its numbers are compared only with
-each other**, never with the Claude Code runs above (different harness,
-system prompt and tools).
+`record_finding`, calling **Claude Haiku 5.5** (effort `medium`, adaptive
+thinking, its defaults) through OpenRouter's Anthropic-compatible API with the
+Anthropic provider pinned. **Its numbers are compared only with each other**,
+never with the Claude Code runs above (different harness, system prompt,
+tools and model: those used Haiku 4.5).
 
 Every token count is measured from the API's usage. Cost is shown twice:
 estimated from list prices, and measured as OpenRouter's reported charge.
@@ -547,7 +548,10 @@ an estimated $2 per experiment and $0.60 per run.
 plus pruning). Pruning is client-side message editing: once uncleared tool
 results exceed ~12k tokens (estimated), every result except the 3 most recent
 is replaced by a one-line stub naming the call; it acts only when at least
-~4k tokens can go, which keeps prompt-cache rewrites rare. Tasks are
+~4k tokens can go, which keeps prompt-cache rewrites rare. Haiku 5.5 accepts
+a thinking block only while everything before it is unchanged, so a prune
+also drops the thinking blocks after the first edited message (text and tool
+calls stay); that lost reasoning is part of what the check measures. Tasks are
 pre-selected by rule, not by result: ranks 1, 5, 9, 13 and 17 by median
 input tokens of the phase 2 C runs (heaviest to light): **H17, H13, H11,
 H19, H09**. 5 tasks × 2 arms × 1 run.

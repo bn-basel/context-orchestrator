@@ -43,9 +43,10 @@ tasks are in benchmarks/README.md ("Phase 4 plan"). Order:
 2. `uv sync --group loop`, then `uv run ctxo loop-probe` (one tiny call):
    check that the model id resolves, usage includes cache fields, the
    measured cost lookup works and the key shows a limit.
-3. **4a pruning, 10 runs** (L vs LP on H17, H13, H11, H19, H09). Expected
-   roughly $0.3–0.8 (estimate: our loop's system prompt is far smaller than
-   Claude Code's). Tell the owner the count and estimate before starting.
+3. **4a pruning, 10 runs** (L vs LP on H17, H13, H11, H19, H09) on
+   **Claude Haiku 5.5** (`anthropic/claude-haiku-5.5`; the owner said never
+   to use Haiku 4.5). Tell the owner the count and the estimate from the
+   probe before starting.
 4. **4b memory, 15 runs** (5 parent runs, 5 follow-ups on memory, 5 on an
    empty one). Similar cost per run.
 5. Only after a clear signal: more runs, or hybrid retrieval for findings.

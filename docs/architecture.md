@@ -161,8 +161,10 @@ Claude Code manages its own context, so pruning experiments run in a small
 loop of our own (`evaluation/own_loop.py`, Anthropic SDK as an optional
 dependency group, OpenRouter's Anthropic-compatible endpoint). Pruning edits
 the message list client-side in batches, mirroring the API's
-`clear_tool_uses`: old tool results become one-line stubs naming the call.
-Each experiment compares arms of this loop only.
+`clear_tool_uses`: old tool results become one-line stubs naming the call,
+and thinking blocks after the first edit are dropped, because newer models
+(Claude Haiku 5.5 among them) reject a thinking block whose earlier history
+changed. Each experiment compares arms of this loop only.
 
 ## Data model (SQLite)
 

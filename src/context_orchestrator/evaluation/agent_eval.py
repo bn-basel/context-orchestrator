@@ -78,7 +78,7 @@ SYSTEM_B = (
 
 @dataclass(frozen=True, slots=True)
 class AgentConfig:
-    model: str = "haiku"
+    model: str = "claude-haiku-5-5"  # the published phase 2-3 runs used "haiku" = Haiku 4.5
     strategies: tuple[str, ...] = STRATEGIES
     repetitions: int = 1
     timeout_s: int = 900
@@ -125,7 +125,7 @@ READER_AGENT = {
         "relevant place give the file path, line range and the few key lines quoted verbatim. "
         "No more than 300 words. Say plainly if something does not exist.",
         "tools": ["Read", "Grep", "Glob"],
-        "model": "haiku",
+        "model": "inherit",  # the main agent's model
     }
 }
 

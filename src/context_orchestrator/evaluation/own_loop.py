@@ -66,10 +66,19 @@ from context_orchestrator.tokens import estimate_tokens
 OPENROUTER_BASE_URL = "https://openrouter.ai/api"
 KEY_ENV = "OPENROUTER_API_KEY"
 ENV_FILE = Path(__file__).resolve().parents[3] / ".env"  # repository root; git-ignored
-DEFAULT_MODEL = "anthropic/claude-haiku-4.5"
-# USD per million tokens: input, output, cache write (5-minute), cache read. Anthropic list
-# prices, which OpenRouter passes through; used only for estimates.
-PRICES = {"anthropic/claude-haiku-4.5": (1.0, 5.0, 1.25, 0.10)}
+DEFAULT_MODEL = "anthropic/claude-haiku-5.5"
+# USD per million tokens: input, output, cache write (5-minute), cache read, by prompt size.
+# A call whose prompt (input + cache read + cache write) exceeds the threshold is billed
+# entirely at the second card. Anthropic list prices as OpenRouter publishes them
+# (openrouter.ai/api/v1/models, 2026-10-11); used only for estimates.
+PRICES = {
+    "anthropic/claude-haiku-5.5": [
+        (100_000, (0.10, 0.50, 0.125, 0.01)),
+        (None, (0.50, 2.50, 0.625, 0.05)),
+    ],
+}
+EFFORT = "medium"  # Claude Haiku 5.5's default, stated explicitly
+THINKING_TYPES = ("thinking", "redacted_thinking")
 PROVIDER = {"only": ["anthropic"], "allow_fallbacks": False}
 
 ARMS = ("L", "LP", "S", "SP", "SM", "SM0")
@@ -292,25 +301,39 @@ def _stub(name: str, args: dict[str, Any]) -> str:
 def prune(messages: list[dict[str, Any]], policy: PrunePolicy) -> dict[str, int] | None:
     """Clear old tool results in place. Returns what was cleared, or None if nothing was."""
     calls: dict[str, tuple[str, dict[str, Any]]] = {}
-    results: list[dict[str, Any]] = []
-    for message in messages:
+    results: list[tuple[int, dict[str, Any]]] = []  # (message index, block)
+    for i, message in enumerate(messages):
         for block in message["content"] if isinstance(message["content"], list) else []:
             if block.get("type") == "tool_use":
                 calls[block["id"]] = (block["name"], block.get("input") or {})
             elif block.get("type") == "tool_result" and not block.get("_cleared"):
-                results.append(block)
-    sizes = [estimate_tokens(_result_text(b)) for b in results]
+                results.append((i, block))
+    sizes = [estimate_tokens(_result_text(b)) for _, b in results]
     if sum(sizes) <= policy.trigger_tokens:
         return None
     old = results[: max(0, len(results) - policy.keep)]
     freed = sum(sizes[: len(old)])
     if not old or freed < policy.min_clear_tokens:
         return None
-    for block in old:
+    for _, block in old:
         name, args = calls.get(block["tool_use_id"], ("tool", {}))
         block["content"] = _stub(name, args)
         block["_cleared"] = True
-    return {"cleared_results": len(old), "freed_tokens_estimated": freed}
+    # Newer models (Claude Haiku 5.5 among them) accept a thinking block only while
+    # everything sent before it is unchanged, so every thinking block after the first edit
+    # is dropped (what the API's drop_block option does). Text and tool calls stay.
+    first_edit = old[0][0]
+    dropped = 0
+    for message in messages[first_edit:]:
+        if message["role"] == "assistant":
+            kept = [b for b in message["content"] if b.get("type") not in THINKING_TYPES]
+            dropped += len(message["content"]) - len(kept)
+            message["content"] = kept
+    return {
+        "cleared_results": len(old),
+        "freed_tokens_estimated": freed,
+        "thinking_blocks_dropped": dropped,
+    }
 
 
 def _result_text(block: dict[str, Any]) -> str:
@@ -380,6 +403,10 @@ def openrouter_model(api_key: str | None = None) -> Model:
                 content.append(
                     {"type": "tool_use", "id": block.id, "name": block.name, "input": block.input}
                 )
+            elif block.type in THINKING_TYPES:
+                # Passed back unmodified with the tool results; the text is usually empty
+                # (omitted by default) and only the signature matters.
+                content.append(block.model_dump(mode="json", exclude_none=True))
         usage = response.usage.model_dump(mode="json") if response.usage else {}
         return Turn(response.id, response.stop_reason, content, usage)
 
@@ -423,10 +450,16 @@ def openrouter_key_status(api_key: str | None = None) -> dict[str, Any] | None:
 
 
 def estimate_cost(model: str, usage: dict[str, Any]) -> float | None:
-    prices = PRICES.get(model)
-    if prices is None:
+    cards = PRICES.get(model)
+    if cards is None:
         return None
-    p_in, p_out, p_write, p_read = prices
+    prompt = sum(
+        usage.get(k) or 0
+        for k in ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens")
+    )
+    p_in, p_out, p_write, p_read = next(
+        prices for limit, prices in cards if limit is None or prompt <= limit
+    )
     return (
         (usage.get("input_tokens") or 0) * p_in
         + (usage.get("output_tokens") or 0) * p_out
@@ -441,7 +474,8 @@ def estimate_cost(model: str, usage: dict[str, Any]) -> float | None:
 @dataclass(frozen=True, slots=True)
 class LoopConfig:
     model: str = DEFAULT_MODEL
-    max_tokens: int = 4096  # per response
+    max_tokens: int = 16_000  # per response; thinking counts toward it
+    effort: str = EFFORT
     max_turns: int = 40
     max_run_usd: float = 0.60  # estimated; stops a runaway run
     max_total_usd: float = 2.00  # estimated, whole experiment; nothing starts beyond it
@@ -509,6 +543,7 @@ def run_loop(
             system=system,
             tools=tools_for(arm),
             messages=_with_cache_marks(messages),
+            output_config={"effort": config.effort},
         )
         cost = estimate_cost(config.model, turn.usage)
         run_cost += cost or 0.0
@@ -518,6 +553,9 @@ def run_loop(
         )  # fmt: skip
         messages.append({"role": "assistant", "content": turn.content})
         uses = [b for b in turn.content if b["type"] == "tool_use"]
+        if turn.stop_reason == "refusal":
+            error = "the model declined the request (stop_reason refusal)"
+            break
         if not uses:
             answer = "\n".join(b["text"] for b in turn.content if b["type"] == "text").strip()
             if turn.stop_reason == "max_tokens":

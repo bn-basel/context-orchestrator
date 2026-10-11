@@ -123,8 +123,9 @@ class ScriptedModel:
             use = {"name": "record_finding", "input": self.finding}
         else:
             return Turn(f"gen-{n}", "end_turn", [{"type": "text", "text": ANSWER}], dict(USAGE))
+        thinking = {"type": "thinking", "thinking": "", "signature": f"sig{n}"}
         block = {"type": "tool_use", "id": f"tu{n}", **use}
-        return Turn(f"gen-{n}", "tool_use", [block], dict(USAGE))
+        return Turn(f"gen-{n}", "tool_use", [thinking, block], dict(USAGE))
 
 
 def test_run_loop_returns_answer_usage_and_prunes(tmp_path: Path) -> None:
@@ -138,10 +139,44 @@ def test_run_loop_returns_answer_usage_and_prunes(tmp_path: Path) -> None:
     last_sent = model.requests[-1]["messages"]
     cleared = [b for m in last_sent for b in m["content"] if b["type"] == "tool_result"]
     assert "result cleared" in cleared[0]["content"] and "cleared" not in cleared[-1]["content"]
+    # Thinking blocks are passed back, except after the first edited message: there they
+    # would no longer match the history they were made with.
+    assert model.requests[1]["messages"][1]["content"][0]["type"] == "thinking"
+    first_edit = next(
+        i for i, m in enumerate(last_sent)
+        if any("result cleared" in str(b.get("content", "")) for b in m["content"])
+    )  # fmt: skip
+    after = [b["type"] for m in last_sent[first_edit:] for b in m["content"]]
+    assert "thinking" not in after and "tool_use" in after
+    assert last_sent[1]["content"][0]["type"] == "thinking"  # before the edit: kept
+    assert sum(e["thinking_blocks_dropped"] for e in result["prune_events"]) >= 1
     usage = own_loop.summarise_usage(result["calls"], config.model)
     assert usage["total_input_tokens"]["value"] == 5 * 3100
     assert usage["estimated_cost_usd"]["kind"] == "estimated"
     assert usage["measured_cost_usd"]["kind"] == "unavailable"  # never looked up here
+
+
+def test_cost_estimate_uses_the_prompt_size_rate_card() -> None:
+    model = "anthropic/claude-haiku-5.5"
+    small = {"input_tokens": 1000, "cache_read_input_tokens": 50_000,
+             "cache_creation_input_tokens": 0, "output_tokens": 1000}  # fmt: skip
+    assert own_loop.estimate_cost(model, small) == pytest.approx(
+        (1000 * 0.10 + 50_000 * 0.01 + 1000 * 0.50) / 1e6
+    )
+    large = {**small, "cache_read_input_tokens": 150_000}  # prompt over 100k: second card
+    assert own_loop.estimate_cost(model, large) == pytest.approx(
+        (1000 * 0.50 + 150_000 * 0.05 + 1000 * 2.50) / 1e6
+    )
+    assert own_loop.estimate_cost("anthropic/unknown", small) is None
+
+
+def test_refusal_ends_the_run_with_an_error() -> None:
+    def model(**kwargs) -> Turn:
+        return Turn("gen-1", "refusal", [], dict(USAGE))
+
+    project = (HALLPASS.parent / "../corpora/hallpass").resolve()
+    result = run_loop(model, LoopConfig(), "L", "t", LocalTools(project))
+    assert "refusal" in result["error"] and result["answer"] == ""
 
 
 def test_run_loop_budget_brake() -> None:

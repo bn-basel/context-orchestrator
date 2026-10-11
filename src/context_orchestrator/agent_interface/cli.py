@@ -120,7 +120,7 @@ def _build_parser() -> argparse.ArgumentParser:
     ag.add_argument("--rubrics", type=Path, required=True)
     ag.add_argument("--tasks", help="comma-separated task ids (default: all)")
     ag.add_argument("--strategies", default="A,B,C,D")
-    ag.add_argument("--model", default="haiku")
+    ag.add_argument("--model", default="claude-haiku-5-5")
     ag.add_argument("--reps", type=int, default=1)
     ag.add_argument("--max-budget-usd", type=float, default=3.0)
     ag.add_argument("--workers", type=int, default=1, help="parallel claude sessions")
@@ -142,7 +142,7 @@ def _build_parser() -> argparse.ArgumentParser:
     lp = sub.add_parser(
         "loop-probe", help="one tiny call through the own agent loop's API route (costs ~$0.0001)"
     )
-    lp.add_argument("--model", default="anthropic/claude-haiku-4.5")
+    lp.add_argument("--model", default="anthropic/claude-haiku-5.5")
 
     le = sub.add_parser("loop-eval", help="phase 4: pruning or memory experiment, own loop")
     le.add_argument("experiment", choices=["prune", "memory"])
@@ -153,7 +153,7 @@ def _build_parser() -> argparse.ArgumentParser:
     le.add_argument("--arms", default="L,LP", help="prune experiment arms (L, LP, S, SP)")
     le.add_argument("--tasks", help="comma-separated task ids (default: all)")
     le.add_argument("--reps", type=int, default=1)
-    le.add_argument("--model", default="anthropic/claude-haiku-4.5")
+    le.add_argument("--model", default="anthropic/claude-haiku-5.5")
     le.add_argument("--max-total-usd", type=float, default=2.0, help="estimated; hard stop")
     le.add_argument("--dry-run", action="store_true", help="list the runs; call nothing")
     le.add_argument("--seed", type=int, default=20261011)
@@ -226,7 +226,8 @@ def _loop_probe(args: argparse.Namespace) -> int:
     model = own_loop.openrouter_model()
     turn = model(
         model=args.model,
-        max_tokens=16,
+        max_tokens=1024,  # thinking counts toward it
+        output_config={"effort": own_loop.EFFORT},
         messages=[{"role": "user", "content": "Reply with the single word OK."}],
     )
     print(f"response id: {turn.id}\nstop_reason: {turn.stop_reason}")
