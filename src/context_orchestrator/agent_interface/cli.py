@@ -96,6 +96,10 @@ def _build_parser() -> argparse.ArgumentParser:
         help="store task text and query terms in telemetry (off by default)",
     )
 
+    wi = sub.add_parser("what-if", help="replay recorded runs under alternative policies")
+    wi.add_argument("run_dir", type=Path)
+    wi.add_argument("--suite", type=Path, required=True)
+
     tr = sub.add_parser("analyze-traces", help="what agents read in an eval-agent run")
     tr.add_argument("run_dir", type=Path)
     tr.add_argument("--suite", type=Path, required=True)
@@ -192,6 +196,17 @@ def main(argv: list[str] | None = None) -> int:
         format="%(levelname)s %(name)s: %(message)s",
         stream=sys.stderr,
     )
+    if args.command == "what-if":
+        from context_orchestrator.evaluation.retrieval_eval import load_suite
+        from context_orchestrator.evaluation.what_if import write_what_if
+
+        try:
+            out = write_what_if(args.run_dir, load_suite(args.suite))
+        except (OSError, ValueError, KeyError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        print(out.read_text(encoding="utf-8"))
+        return 0
     if args.command == "analyze-traces":
         from context_orchestrator.evaluation.retrieval_eval import load_suite
         from context_orchestrator.evaluation.trace_analysis import write_trace_analysis

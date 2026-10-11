@@ -443,3 +443,44 @@ at 80% power needs ~18 runs, and a 20% saving ~160 runs. Small (~10-run)
 checks can catch large effects and clear behaviour changes, not modest
 savings. Cheaper, less noisy signals (behaviour measures from traces, such as
 re-read share or service-call counts) are better targets for small checks.
+
+## Phase 3c: what-if estimates from the recordings (no model calls)
+
+`ctxo what-if <run> --suite <suite>` replays the 300 phase 2 recordings under
+alternative policies and estimates the change in input tokens. Results in
+`results/20261011T032628Z-hallpass-agent/what_if.md`.
+
+**Cost model.** Per strategy, input tokens ≈ a × model calls + b × carried
+characters (tool output re-sent on every later call). Fits are good
+(correlation of log predicted vs log actual 0.85–0.96; b ≈ 0.2–0.55 tokens per
+character). For A the fixed ~120k-token prompt dominates and no usable b
+exists, so A is excluded.
+
+| Policy | B | B2 | C | D |
+|---|---|---|---|---|
+| Service returns whole files ≤ 4k chars | +7% | +20% | n/a | n/a |
+| Service returns whole files ≤ 8k chars | +18% | +45% | n/a | n/a |
+| First answer already holds what the agent later went to find | −4% | −5% | n/a | n/a |
+| Prune each tool result after 10 more calls | −19% | −13% | −16% | −3% |
+| Prune each tool result after 5 more calls | −45% | −33% | −40% | −10% |
+| Prune each tool result after 3 more calls | −59% | −48% | −53% | −15% |
+
+Mean change per run (medians in `what_if.md`), **assuming the agent otherwise
+behaves the same**. That is an upper bound: phase 3a showed agents react to
+what they receive.
+
+What this says:
+
+1. **Returning whole files would make things worse.** The extra text is
+   re-sent every turn, which outweighs the re-reads it saves.
+2. **Better first answers save little directly** (≈5%). Retrieval quality
+   matters more for plan quality than for tokens.
+3. **In-place pruning of old tool output is by far the largest lever**:
+   about a third to a half of input tokens with a 3–5 call window. This is
+   the idea behind Meta's Context Language Models (agents editing their own
+   context) and the Claude API's context editing (`clear_tool_uses`).
+   Two caveats: tokens are not cost (prompt caching makes re-sent context
+   cheap, ~0.1× price, and any edit invalidates the cache after the edit
+   point, so frequent pruning trades cheap cache reads for cache writes); and
+   pruning cannot be applied inside the Claude Code CLI used for these runs.
+   Testing it needs our own agent loop.

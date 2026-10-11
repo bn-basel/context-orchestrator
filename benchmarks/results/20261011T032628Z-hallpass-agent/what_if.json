@@ -1,0 +1,135 @@
+{
+  "cost_models": {
+    "A": {
+      "per_call_tokens": 121494.35830149033,
+      "tokens_per_carried_char": -0.3320628331734665,
+      "log_correlation": 0.9245854416622872,
+      "runs": 60
+    },
+    "B": {
+      "per_call_tokens": 1445.1116291987678,
+      "tokens_per_carried_char": 0.46767708725690416,
+      "log_correlation": 0.9154397754062089,
+      "runs": 60
+    },
+    "B2": {
+      "per_call_tokens": 2525.163545475511,
+      "tokens_per_carried_char": 0.5446206473267159,
+      "log_correlation": 0.9309505930312401,
+      "runs": 60
+    },
+    "C": {
+      "per_call_tokens": 3235.270981376525,
+      "tokens_per_carried_char": 0.3925596433786393,
+      "log_correlation": 0.8499385441446548,
+      "runs": 60
+    },
+    "D": {
+      "per_call_tokens": 7782.350073026889,
+      "tokens_per_carried_char": 0.22480098878595084,
+      "log_correlation": 0.9626651869019905,
+      "runs": 60
+    }
+  },
+  "input_token_change": {
+    "A": {
+      "note": "fixed per-call cost dominates; no usable fit"
+    },
+    "B": {
+      "whole_files_4k": {
+        "mean": 0.0687,
+        "median": 0.0163
+      },
+      "whole_files_8k": {
+        "mean": 0.1834,
+        "median": 0.0749
+      },
+      "whole_files_16k": {
+        "mean": 0.2373,
+        "median": 0.1267
+      },
+      "whole_files_32k": {
+        "mean": 0.2373,
+        "median": 0.1267
+      },
+      "complete_first_answer": {
+        "mean": -0.0411,
+        "median": 0.0
+      },
+      "prune_after_3": {
+        "mean": -0.5886,
+        "median": -0.6191
+      },
+      "prune_after_5": {
+        "mean": -0.4457,
+        "median": -0.4815
+      },
+      "prune_after_10": {
+        "mean": -0.1874,
+        "median": -0.1811
+      }
+    },
+    "B2": {
+      "whole_files_4k": {
+        "mean": 0.2029,
+        "median": 0.1807
+      },
+      "whole_files_8k": {
+        "mean": 0.4472,
+        "median": 0.3922
+      },
+      "whole_files_16k": {
+        "mean": 0.5921,
+        "median": 0.5252
+      },
+      "whole_files_32k": {
+        "mean": 0.5921,
+        "median": 0.5252
+      },
+      "complete_first_answer": {
+        "mean": -0.0485,
+        "median": 0.0
+      },
+      "prune_after_3": {
+        "mean": -0.4786,
+        "median": -0.5205
+      },
+      "prune_after_5": {
+        "mean": -0.3336,
+        "median": -0.366
+      },
+      "prune_after_10": {
+        "mean": -0.1258,
+        "median": -0.085
+      }
+    },
+    "C": {
+      "prune_after_3": {
+        "mean": -0.5254,
+        "median": -0.5317
+      },
+      "prune_after_5": {
+        "mean": -0.3997,
+        "median": -0.404
+      },
+      "prune_after_10": {
+        "mean": -0.1643,
+        "median": -0.126
+      }
+    },
+    "D": {
+      "prune_after_3": {
+        "mean": -0.1461,
+        "median": -0.1408
+      },
+      "prune_after_5": {
+        "mean": -0.0965,
+        "median": -0.0724
+      },
+      "prune_after_10": {
+        "mean": -0.0338,
+        "median": -0.0006
+      }
+    }
+  }
+}
