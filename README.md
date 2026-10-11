@@ -95,13 +95,14 @@ not find.
 ```bash
 uv run pytest
 uv run ctxo eval-retrieval benchmarks/tasks/hallpass.json
-uv run ctxo eval-agent benchmarks/tasks/hallpass.json --rubrics benchmarks/tasks/hallpass.rubrics.json --tasks H01 --strategies B2,C
+uv run ctxo eval-agent benchmarks/tasks/hallpass.json --rubrics benchmarks/tasks/hallpass.rubrics.json --tasks H01 --strategies B2,C --service-args "--retrieval bm25 --hops 2"
 uv run ctxo analyze-agent benchmarks/results/<run>
 uv run python benchmarks/charts/phase2_chart.py benchmarks/results/20261011T032628Z-hallpass-agent
 ```
 
 `eval-retrieval` makes no model calls. `eval-agent` runs Claude Code and uses
-real usage, so start small. Method:
+real usage, so start small. The published runs used `--retrieval hybrid`
+(needs Ollama); `bm25` works without it. Method:
 [docs/benchmark-methodology.md](docs/benchmark-methodology.md). Design:
 [docs/architecture.md](docs/architecture.md). Plans: [ROADMAP.md](ROADMAP.md).
 
