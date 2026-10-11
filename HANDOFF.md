@@ -3,7 +3,7 @@
 Read this first when resuming work in a new session. Keep it current: update
 it at the end of every milestone, and before a session's context runs out.
 
-**Last updated:** 2026-10-11, phase 1c (keyword steps done; semantic step pending approval).
+**Last updated:** 2026-10-11, phase 1c done; owner decision pending on how to proceed.
 
 ## Resume prompt
 
@@ -19,7 +19,7 @@ Paste into a new chat opened in `C:\WIP\projects\Agent-Memory`:
 | 0 Foundation | done: ingest → retrieve → package → telemetry, CLI + Python API |
 | 1 Measure retrieval | done on the tiny sample: gate 1 passed narrowly (recall 0.83) |
 | 1b Larger corpus | done: Hallpass (~140k tokens, 20 tasks). **Gate 1 not passed**: recall 0.56, precision 0.28, 2 missed "not found" cases |
-| 1c Improve retrieval | **in progress**: keyword steps 1–4 done, recall still ~0.56 (log in benchmarks/README.md). Next: semantic ranking, **waiting for owner approval to download an embedding model** |
+| 1c Improve retrieval | **done**: keyword steps + hybrid (embeddings). Hallpass recall stuck ~0.57 (ceiling 0.92); sample 0.94 with hybrid. **Owner decision pending** (see Next step) |
 | 2 Agent comparison | designed in docs/benchmark-methodology.md, not built |
 | 3–5 | planned, see ROADMAP.md |
 
@@ -28,21 +28,24 @@ Diagnosis (benchmarks/README.md): ranking is the main loss (recall 0.56 →
 23% of the corpus; "not found" can't be detected by zero matches in a big
 corpus; the token budget ignores rendering overhead (bug).
 
-## Next step (phase 1c, semantic ranking)
+## Next step: owner decision pending
 
-Keyword tweaks have stalled (see "Phase 1c log" in benchmarks/README.md).
-Plan, once the owner approves the download:
+Phase 1c result (benchmarks/README.md, "Phase 1c log" and "step 5"): no
+single-shot method gets Hallpass recall near 0.80. Needed chunks are often
+relevant by reasoning (ticket → function → what it calls), not by words or
+topic. Options put to the owner:
 
-1. Embedding model via the toolbox Ollama (`C:\WIP\tools\ollama\ollama.exe`,
-   no embedding model installed yet). Candidate: `nomic-embed-text`
-   (Apache-2.0, ~274 MB). Called over Ollama's local HTTP API with `urllib`,
-   so the core stays standard-library only; the feature is optional.
-2. Store one vector per chunk in SQLite (blob), computed at ingest, skipped
-   for unchanged files.
-3. Hybrid ranking: BM25 and vector similarity fused with reciprocal rank
-   fusion, per kind. Measure on the dev set (hallpass.json), commit each step.
-4. Then the held-out task suite (fresh agent, committed before running);
-   judge gate 1 on it.
+- **A. Multi-step retrieval** (recommended): let the service follow up its own
+  first results (expand the query with names found in the top items) and
+  measure; still no model calls. Cheap, directly targets the diagnosed gap.
+- **B. Go to phase 2 now** with gate 1 recorded as failed for single-shot,
+  arguing that strategy B's agent does multi-step search itself.
+- **C. Label check**: a second agent labels the same 20 tasks independently;
+  agreement shows how much of the "miss" is label subjectivity.
+
+Embedding setup if needed again: start the toolbox Ollama with
+`OLLAMA_MODELS=C:\WIP\tools\ollama\models C:\WIP\tools\ollama\ollama.exe serve`;
+`nomic-embed-text` is pulled. Then use `--retrieval hybrid`.
 
 ## Decisions already made (do not re-ask)
 
