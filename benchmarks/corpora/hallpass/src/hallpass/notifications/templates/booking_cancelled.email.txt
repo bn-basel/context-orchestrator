@@ -1,0 +1,7 @@
+Hi {first_name},
+
+Your booking {booking_ref} ({space_name}, {facility_name}, {date_text} {time_text}) has been cancelled.
+
+If you're due a refund it will go back to the card you paid with, usually within 5 working days. You'll get a separate email when it's processed.
+
+Leisure Bookings

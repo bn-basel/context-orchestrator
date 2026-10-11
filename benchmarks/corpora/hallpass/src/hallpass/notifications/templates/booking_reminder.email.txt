@@ -1,0 +1,9 @@
+Hi {first_name},
+
+Just a reminder that you have {space_name} at {facility_name} booked for {date_text}, {time_text}.
+
+Booking reference: {booking_ref}
+
+If you can't make it, please cancel in your account so someone else can use the space. Depending on how much notice you give, you may get some or all of your money back.
+
+Leisure Bookings

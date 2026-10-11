@@ -1,0 +1,58 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hallpass"
+version = "3.4.2"
+description = "Community facility booking for Leisure Services"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "flask>=3.0,<4",
+    "psycopg[binary,pool]>=3.1,<3.3",
+    "pydantic>=2.6,<3",
+    "httpx>=0.27",
+    "jinja2>=3.1",
+    "itsdangerous>=2.1",
+    "structlog>=24.1",
+    "gunicorn>=22",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-cov",
+    "freezegun>=1.4",
+    "respx>=0.21",
+    "ruff>=0.5",
+    "mypy>=1.10",
+]
+
+[project.scripts]
+hallpass-worker = "hallpass.worker:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+markers = [
+    "db: needs HALLPASS_TEST_DATABASE_URL",
+    "slow: excluded from the pre-commit run",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "DTZ"]
+# DTZ catches naive datetimes. Do not turn it off, see docs/conventions.md
+
+[tool.mypy]
+python_version = "3.12"
+strict = false
+warn_unused_ignores = true
+files = ["src/hallpass/core", "src/hallpass/billing"]

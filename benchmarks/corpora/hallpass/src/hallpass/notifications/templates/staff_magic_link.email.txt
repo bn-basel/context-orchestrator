@@ -1,0 +1,5 @@
+Your Hallpass staff login link (valid for 20 minutes):
+
+{link}
+
+If you didn't request this, tell the service desk.

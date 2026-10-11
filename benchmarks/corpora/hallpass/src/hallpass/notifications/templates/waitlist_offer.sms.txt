@@ -1,0 +1,1 @@
+Hi {first_name}, a space you were waiting for has come up. It's held for you for a short time - log in to your account to confirm it.

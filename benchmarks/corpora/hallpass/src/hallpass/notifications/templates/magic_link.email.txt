@@ -1,0 +1,9 @@
+Hi {first_name},
+
+Use this link to log in. It works once and expires in 20 minutes.
+
+{link}
+
+If you didn't ask for this, ignore this email - nobody can log in without access to your inbox.
+
+Leisure Bookings

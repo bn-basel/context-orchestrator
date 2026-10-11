@@ -1,0 +1,1 @@
+Hi {first_name}, reminder: {space_name}, {facility_name}, tomorrow {time_text}. Ref {booking_ref}. Can't make it? Cancel in your account so others can use it. Reply STOP to stop reminders.
