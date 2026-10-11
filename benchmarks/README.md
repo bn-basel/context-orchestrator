@@ -159,3 +159,42 @@ What the steps showed:
   package size directly.
 
 Next: meaning-based (semantic) ranking, combined with BM25.
+
+### Phase 1c step 5: meaning-based (hybrid) retrieval
+
+Embeddings: `nomic-embed-text` (Apache-2.0, digest `0a109f422b47`) via a local
+Ollama; BM25 and vector ranks fused with reciprocal rank fusion (k=60).
+Runs from this step onwards record the model digest in `run.json`.
+
+| Mode | Sample recall / precision | Hallpass recall / precision |
+|---|---|---|
+| BM25 (current default) | 0.81 / 0.39 | 0.56 / 0.29 |
+| Hybrid | **0.94 / 0.41** | 0.57 / 0.30 |
+| Semantic only | 0.85 / 0.36 | 0.50 / 0.26 |
+
+Hybrid fixes the vocabulary problem the sample was built to show ("penalty"
+finds "fine"), but barely moves Hallpass. Diagnostics on Hallpass:
+
+- **Ceiling.** With perfect ranking at 3 items per kind, recall could reach
+  0.92 (7 of 107 labels sit in kinds the task didn't request). So ranking,
+  not the slot limit, is the gap.
+- **Where the needed chunks rank** within their kind (107 labels):
+
+  | Mode | Top 3 | 4–10 | 11–50 | 51–200 | Not reached |
+  |---|---|---|---|---|---|
+  | BM25 | 59 | 19 | 13 | 7 | 9 |
+  | Hybrid | 60 | 21 | 12 | 1 | 13 |
+
+  Embeddings reshuffle the order but don't bring many more needed chunks into
+  the top 3.
+- **Why.** Many needed chunks are relevant by *reasoning*, not by topic: the
+  transaction helper a race-condition fix will need, the migration that adds a
+  column, the test fixture that a new test must use. An engineer reaches them
+  in steps (ticket → function → what it calls). A single query, whether by
+  words or by meaning, does not.
+
+Conclusion so far: **single-shot retrieval looks capped well below gate 1's
+0.80 on realistic tasks.** Gate 1 measures one request per task; strategy B
+in phase 2 lets the agent make several requests and read files itself, which
+is the multi-step search these misses need. Whether that is enough is exactly
+what phase 2 measures.
