@@ -54,7 +54,40 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="store task text and query terms in telemetry (off by default)",
     )
+
+    ev = sub.add_parser("eval-retrieval", help="score retrieval against a labelled task suite")
+    ev.add_argument("suite", type=Path, help="task suite JSON (see benchmarks/tasks/)")
+    ev.add_argument("--gate", type=Path, help="gate criteria JSON (e.g. benchmarks/gate1.json)")
+    ev.add_argument(
+        "--out",
+        type=Path,
+        default=Path("benchmarks/results"),
+        help="directory for raw run results (default: benchmarks/results)",
+    )
+    ev.add_argument("--max-tokens", type=int, default=4000)
+    ev.add_argument("--per-kind-limit", type=int, default=3)
     return parser
+
+
+def _eval_retrieval(args: argparse.Namespace) -> int:
+    from context_orchestrator.evaluation.retrieval_eval import (
+        RetrievalConfig,
+        load_suite,
+        run_suite,
+    )
+
+    suite = load_suite(args.suite)
+    gate = json.loads(args.gate.read_text(encoding="utf-8")) if args.gate else None
+    run = run_suite(
+        suite,
+        args.out,
+        RetrievalConfig(args.max_tokens, args.per_kind_limit),
+        gate=gate,
+        gate_path=args.gate,
+    )
+    print((run.run_dir / "summary.md").read_text(encoding="utf-8"))
+    print(f"Raw results: {run.run_dir}")
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -66,6 +99,12 @@ def main(argv: list[str] | None = None) -> int:
         format="%(levelname)s %(name)s: %(message)s",
         stream=sys.stderr,
     )
+    if args.command == "eval-retrieval":
+        try:
+            return _eval_retrieval(args)
+        except (ValueError, OSError, json.JSONDecodeError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
     if not args.project.is_dir():
         print(f"error: project directory not found: {args.project}", file=sys.stderr)
         return 2

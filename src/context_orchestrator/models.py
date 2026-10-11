@@ -153,6 +153,9 @@ class ContextPackage:
     estimated_tokens: Metric
     query_terms: list[str]
     notes: list[str] = field(default_factory=list)
+    # Requested kinds with no match ("any" when no kinds were requested); machine-readable
+    # counterpart of the matching sentences in ``unresolved``.
+    unresolved_kinds: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

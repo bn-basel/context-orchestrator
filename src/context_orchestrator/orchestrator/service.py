@@ -55,6 +55,7 @@ class ContextOrchestrator:
         started = self.clock()
         terms = extract_terms(" ".join([request.task, *request.constraints]))
         unresolved: list[str] = []
+        unresolved_kinds: list[str] = []
         omitted: list[OmittedItem] = []
         notes: list[str] = []
         candidates_seen = 0
@@ -76,6 +77,7 @@ class ContextOrchestrator:
             kept = kept[: request.per_kind_limit]
             if terms and not kept:
                 label = kind.value if kind else "project"
+                unresolved_kinds.append(kind.value if kind else "any")
                 unresolved.append(
                     f"No {label} information matched the task terms. It may be missing from the "
                     "knowledge base, or described with different vocabulary."
@@ -125,6 +127,7 @@ class ContextOrchestrator:
             estimated_tokens=Metric.estimated(0, ESTIMATE_METHOD),
             query_terms=terms,
             notes=notes,
+            unresolved_kinds=unresolved_kinds,
         )
         package.estimated_tokens = Metric.estimated(
             estimate_tokens(package.render_markdown()), ESTIMATE_METHOD
