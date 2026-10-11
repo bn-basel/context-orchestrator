@@ -1,0 +1,283 @@
+{
+  "schema_version": 1,
+  "suite": "hallpass",
+  "project": "../corpora/hallpass",
+  "description": "Twenty developer tasks for the Hallpass fixture, written by a Claude subagent after reading the whole corpus (docs, migrations, source and tests) by hand. Labels mark the minimal line ranges an engineer needs to read to do each task correctly and safely; no retrieval or search tooling was run while writing them.",
+  "tasks": [
+    {
+      "id": "H01",
+      "category": "bugfix",
+      "task": "Ticket from Sue (bookings officer): after the clocks went back, Thornbury BC's Tuesday 19:00 block booking shows 18:00 from late October onwards, and the 19:00 slot looks free to the public. She's tired of splitting every season into three. Can we make new block bookings keep the same local start time all year round?",
+      "kinds": ["known_issue", "code", "test", "convention"],
+      "relevant": [
+        {"path": "docs/known-issues/bookings.md", "lines": [67, 93], "note": "HP-503: mechanism, extend_series variant, workaround and why the fix is parked"},
+        {"path": "src/hallpass/bookings/recurring.py", "lines": [69, 95], "note": "occurrence_windows adds weeks to the first UTC start (the bug)"},
+        {"path": "src/hallpass/core/tz.py", "lines": [42, 50], "note": "local_to_utc, the conversion to use per occurrence"},
+        {"path": "docs/bookings/time-and-dst.md", "lines": [8, 17], "note": "time rule: never add timedelta(days=7) to a UTC instant", "expected_status": "assumption"},
+        {"path": "tests/bookings/test_recurring.py", "lines": [63, 85], "note": "strict xfails and the pinned wrong behaviour that must flip together"}
+      ]
+    },
+    {
+      "id": "H02",
+      "category": "bugfix",
+      "task": "Another complaint from Northgate: a resident got two 'a space has come up' messages for the same badminton court, and the next person in the queue was told about a slot that checkout then said was gone. It happens about once a month. Please sort out waiting-list offers so each freed slot produces exactly one offer, to the right person.",
+      "kinds": ["known_issue", "code", "test"],
+      "relevant": [
+        {"path": "docs/known-issues/bookings.md", "lines": [12, 53], "note": "HP-541 race, step by step, and the proposed fix"},
+        {"path": "src/hallpass/bookings/waitlist.py", "lines": [105, 124], "note": "_next_candidate: plain SELECT, no row lock"},
+        {"path": "src/hallpass/bookings/waitlist.py", "lines": [127, 193], "note": "promote_for_slot: marks offered and queues the message before placing the hold"},
+        {"path": "src/hallpass/bookings/jobs.py", "lines": [65, 107], "note": "sweep_waitlist, the second promotion path"},
+        {"path": "src/hallpass/core/db.py", "lines": [126, 138], "note": "advisory_lock helper suggested for one promoter per space"},
+        {"path": "tests/bookings/test_waitlist.py", "lines": [114, 139], "note": "skipped concurrency reproduction test"}
+      ]
+    },
+    {
+      "id": "H03",
+      "category": "bugfix",
+      "task": "HP-622: when staff click Extend on the weekly piano-lesson block in Music Room 2 (booked for an individual resident, not a club) the back office throws a 500. Please make extending work for those series.",
+      "kinds": ["known_issue", "code", "doc"],
+      "relevant": [
+        {"path": "docs/known-issues/bookings.md", "lines": [101, 105], "note": "HP-622 description"},
+        {"path": "src/hallpass/bookings/recurring.py", "lines": [315, 364], "note": "extend_series always calls book_on_account with the series' organisation_id"},
+        {"path": "src/hallpass/bookings/recurring.py", "lines": [235, 261], "note": "_staff_resident_occurrence: how create_series handles resident series"},
+        {"path": "src/hallpass/bookings/lifecycle.py", "lines": [178, 191], "note": "book_on_account requires an organisation_id"},
+        {"path": "docs/bookings/how-to-block-bookings.md", "lines": [58, 64], "note": "staff guidance on Extend that will need updating"}
+      ]
+    },
+    {
+      "id": "H04",
+      "category": "bugfix",
+      "task": "From the Eastfield service manager: the March usage report shows Hall B as barely available, but the floor-resurfacing closure we entered was withdrawn before it ever happened. The utilisation figures look far too good. Can you fix the report?",
+      "kinds": ["code", "schema", "doc"],
+      "relevant": [
+        {"path": "src/hallpass/reports/usage.py", "lines": [49, 57], "note": "_BLACKOUT_SQL does not exclude withdrawn closures"},
+        {"path": "src/hallpass/reports/usage.py", "lines": [75, 98], "note": "space_utilisation subtracts blackout hours from available hours"},
+        {"path": "db/migrations/0010_release_3_2.sql", "lines": [44, 47], "note": "blackout_periods.withdrawn_at column"},
+        {"path": "src/hallpass/bookings/blackouts.py", "lines": [180, 192], "note": "withdraw_blackout sets withdrawn_at instead of deleting"},
+        {"path": "src/hallpass/bookings/availability.py", "lines": [60, 77], "note": "availability already filters withdrawn_at IS NULL; same pattern"}
+      ]
+    },
+    {
+      "id": "H05",
+      "category": "bugfix",
+      "task": "Small one from the billing backlog: the 'what would I get back if I cancel now?' figure ignores the refund policy switch. If Finance ever flip back to the old policy, the cancel page and the refund actually issued won't agree. Make them consistent.",
+      "kinds": ["known_issue", "code", "test"],
+      "relevant": [
+        {"path": "docs/known-issues/billing.md", "lines": [98, 102], "note": "known issue: refund_preview ignores refund_policy_v2"},
+        {"path": "src/hallpass/billing/refunds.py", "lines": [305, 311], "note": "refund_preview hard-codes use_v2=True"},
+        {"path": "src/hallpass/billing/refunds.py", "lines": [163, 170], "note": "how the real refund reads the flag"},
+        {"path": "src/hallpass/api/bookings.py", "lines": [77, 85], "note": "refund-preview endpoint that calls it"},
+        {"path": "tests/billing/test_refunds.py", "lines": [47, 58], "note": "existing v1-behind-flag tests"}
+      ]
+    },
+    {
+      "id": "H06",
+      "category": "feature_constrained_by_decision",
+      "task": "Club secretaries keep adding people to their organisation in Hallpass and the people have no idea it happened. Can we email someone when they're added to a club or group?",
+      "kinds": ["known_issue", "code", "convention", "decision"],
+      "relevant": [
+        {"path": "docs/known-issues/accounts-and-notifications.md", "lines": [79, 82], "note": "known issue: add_member is silent, org_member_added never written"},
+        {"path": "src/hallpass/accounts/organisations.py", "lines": [56, 70], "note": "add_member, where the enqueue goes"},
+        {"path": "docs/notifications/adding-a-notification.md", "lines": [5, 33], "note": "checklist for a new template"},
+        {"path": "docs/decisions/0008-transactional-outbox-for-notifications.md", "lines": [24, 38], "note": "enqueue in the same transaction, never call a sender"},
+        {"path": "src/hallpass/notifications/recipients.py", "lines": [26, 38], "note": "_LOOKUPS: which refs enqueue can resolve (resident_id)"},
+        {"path": "src/hallpass/notifications/templates.py", "lines": [20, 32], "note": "SUBJECTS needs the new subject line"}
+      ]
+    },
+    {
+      "id": "H07",
+      "category": "feature_constrained_by_decision",
+      "task": "Next time Paybridge's checkout is down we want to put a 'card payments are temporarily unavailable' banner on the booking pages straight away, instead of asking the product owner to edit the council website. Add a switch for it that doesn't need a deploy.",
+      "kinds": ["decision", "convention", "code", "schema", "doc"],
+      "relevant": [
+        {"path": "docs/runbooks/paybridge-outage.md", "lines": [23, 28], "note": "runbook step that wants a payments_paused_banner flag that doesn't exist"},
+        {"path": "docs/decisions/0014-feature-flags-in-database.md", "lines": [27, 43], "note": "flags table, is_enabled, superuser flips with audit, added by migration default off"},
+        {"path": "docs/conventions.md", "lines": [80, 86], "note": "add the flag row in a migration with enabled = false"},
+        {"path": "db/migrations/0007_feature_flags.sql", "lines": [7, 19], "note": "feature_flags table and the INSERT pattern"},
+        {"path": "src/hallpass/core/flags.py", "lines": [64, 94], "note": "is_enabled semantics (cache, facility scope, unknown = off)"},
+        {"path": "src/hallpass/api/staff.py", "lines": [140, 146], "note": "existing flag toggle endpoint (superuser only)"}
+      ]
+    },
+    {
+      "id": "H08",
+      "category": "feature_constrained_by_decision",
+      "task": "Contact centre lead: during the last Paybridge slowdown we had to get a developer to edit a server file and restart to make the checkout hold longer. Can duty managers change the hold length themselves from the back office, say as a feature flag holding the number of minutes?",
+      "kinds": ["decision", "code", "doc"],
+      "relevant": [
+        {"path": "docs/decisions/0014-feature-flags-in-database.md", "lines": [41, 43], "note": "a flag is not a config store; no numbers in flags"},
+        {"path": "docs/meetings/2024-05-14-holds-and-no-shows.md", "lines": [25, 30], "note": "hold length decided as env var, explicitly not a flag"},
+        {"path": "src/hallpass/bookings/lifecycle.py", "lines": [50, 54], "note": "hold_ttl reads settings.hold_minutes"},
+        {"path": "src/hallpass/core/config.py", "lines": [104, 104], "note": "HALLPASS_HOLD_MINUTES setting"},
+        {"path": "docs/bookings/holds-and-payment.md", "lines": [26, 31], "note": "current hold length and why it's an env var"},
+        {"path": "docs/runbooks/paybridge-outage.md", "lines": [34, 46], "note": "the outage procedure that motivates the request"}
+      ]
+    },
+    {
+      "id": "H09",
+      "category": "feature_constrained_by_decision",
+      "task": "Customers keep asking for a 'delete my account' button on their profile page instead of having to email the service desk. Please add self-service account deletion.",
+      "kinds": ["decision", "constraint", "code"],
+      "relevant": [
+        {"path": "docs/decisions/0010-personal-data-retention.md", "lines": [22, 40], "note": "anonymise, never delete; financial records kept 6 years; erasure run by a superuser"},
+        {"path": "src/hallpass/accounts/retention.py", "lines": [62, 80], "note": "anonymise_resident, the existing erasure routine"},
+        {"path": "docs/privacy.md", "lines": [60, 69], "note": "erasure process via superuser and IG"},
+        {"path": "docs/constraints.md", "lines": [28, 30], "note": "retention job must not delete rows finance or audit depend on"},
+        {"path": "docs/constraints.md", "lines": [55, 60], "note": "audit_log append-only; actions need audit rows"},
+        {"path": "docs/accounts/roles.md", "lines": [49, 49], "note": "erasure is superuser-only today"}
+      ]
+    },
+    {
+      "id": "H10",
+      "category": "schema_or_migration",
+      "task": "Pen-test follow-up: staff login links can be used more than once within their lifetime. Make them single-use like the resident ones. Do we need a schema change for this?",
+      "kinds": ["schema", "code", "test", "known_issue", "decision"],
+      "relevant": [
+        {"path": "docs/known-issues/accounts-and-notifications.md", "lines": [64, 67], "note": "known issue says a migration is needed"},
+        {"path": "db/migrations/0010_release_3_2.sql", "lines": [21, 24], "note": "staff_users.last_login_at already added in 3.2"},
+        {"path": "src/hallpass/accounts/auth.py", "lines": [100, 125], "note": "verify_magic_link: resident single-use check, staff branch has none"},
+        {"path": "docs/decisions/0004-passwordless-magic-links.md", "lines": [52, 54], "note": "single-use via last_login_at was the ADR's intent for staff too"},
+        {"path": "tests/accounts/test_auth.py", "lines": [76, 81], "note": "test that documents (and will need to invert) the reuse gap"}
+      ]
+    },
+    {
+      "id": "H11",
+      "category": "schema_or_migration",
+      "task": "Grounds team ask: can pitches have separate summer and winter opening hours that switch over on set dates, instead of someone editing them by hand every April and October? Write the schema change and update whatever reads opening hours.",
+      "kinds": ["schema", "code", "convention", "known_issue"],
+      "relevant": [
+        {"path": "docs/known-issues/bookings.md", "lines": [107, 114], "note": "HP-470: no seasonal hours, proposed valid_from/valid_to"},
+        {"path": "db/migrations/0002_facilities.sql", "lines": [31, 41], "note": "opening_hours table with UNIQUE (space_id, weekday)"},
+        {"path": "src/hallpass/bookings/availability.py", "lines": [49, 58], "note": "_OPENING_HOURS_SQL"},
+        {"path": "src/hallpass/bookings/availability.py", "lines": [119, 125], "note": "_hours_by_space keys hours by weekday only"},
+        {"path": "src/hallpass/reports/usage.py", "lines": [42, 47], "note": "usage report also reads opening_hours"},
+        {"path": "docs/conventions.md", "lines": [38, 41], "note": "migration file rules"}
+      ]
+    },
+    {
+      "id": "H12",
+      "category": "cross_area",
+      "task": "Janet in Finance: the nightly Paybridge reconciliation email has been suspiciously quiet for months and yesterday's payments never seem to get checked (HP-489). Please fix the nightly job and work out how to catch up on the missed days without flooding the finance mailbox.",
+      "kinds": ["known_issue", "code", "doc"],
+      "relevant": [
+        {"path": "docs/known-issues/billing.md", "lines": [13, 25], "note": "HP-489 description and the backfill concern"},
+        {"path": "src/hallpass/worker.py", "lines": [123, 129], "note": "reconcile_paybridge worker job: which day it passes and how it calls billing"},
+        {"path": "src/hallpass/billing/reconciliation.py", "lines": [97, 125], "note": "reconcile_day signature and what it compares"},
+        {"path": "src/hallpass/billing/reconciliation.py", "lines": [143, 162], "note": "_email_finance: one outbox email per day (dedupe key)"},
+        {"path": "docs/runbooks/paybridge-outage.md", "lines": [72, 76], "note": "manual per-day reconciliation command"}
+      ]
+    },
+    {
+      "id": "H13",
+      "category": "cross_area",
+      "task": "When someone pays after their hold has lapsed and another person has already taken the slot, we refund them automatically but say nothing; residents only find out when the money reappears. Send them an apology email explaining what happened.",
+      "kinds": ["code", "decision", "doc", "convention"],
+      "relevant": [
+        {"path": "src/hallpass/billing/payments.py", "lines": [171, 187], "note": "mark_succeeded catches HoldExpired and creates the automatic refund"},
+        {"path": "src/hallpass/bookings/lifecycle.py", "lines": [230, 247], "note": "confirm revives the hold or raises HoldExpired"},
+        {"path": "src/hallpass/billing/refunds.py", "lines": [111, 138], "note": "create_refund_row returns None when capped (duplicate webhook) - don't email twice"},
+        {"path": "docs/meetings/2024-05-14-holds-and-no-shows.md", "lines": [32, 40], "note": "agreed behaviour: automatic full refund plus apology email"},
+        {"path": "docs/bookings/holds-and-payment.md", "lines": [50, 60], "note": "bookings-side description of paid-after-expiry"},
+        {"path": "docs/notifications/adding-a-notification.md", "lines": [5, 33], "note": "how to add the template and enqueue it; guard against reruns"}
+      ]
+    },
+    {
+      "id": "H14",
+      "category": "cross_area",
+      "task": "Riverside Juniors changed secretary over the summer. The old secretary was removed from the club in Hallpass but still gets all the session reminders, and the new one can't cancel anything. When an admin removes someone from an organisation, hand their future club bookings over to another admin of that club.",
+      "kinds": ["known_issue", "code", "doc"],
+      "relevant": [
+        {"path": "docs/known-issues/accounts-and-notifications.md", "lines": [74, 77], "note": "known issue: ex-secretaries keep getting reminders"},
+        {"path": "src/hallpass/accounts/organisations.py", "lines": [73, 92], "note": "remove_member, where the transfer would hook in"},
+        {"path": "src/hallpass/bookings/lifecycle.py", "lines": [205, 213], "note": "org bookings store the maker in resident_id"},
+        {"path": "src/hallpass/notifications/recipients.py", "lines": [66, 108], "note": "resolve: notifications go to the booking's resident, else the org billing_email"},
+        {"path": "docs/accounts/organisations.md", "lines": [46, 50], "note": "transfer-bookings item on the accounts backlog"}
+      ]
+    },
+    {
+      "id": "H15",
+      "category": "superseded_trap",
+      "task": "Service desk: residents keep ringing up to argue about how much they got back after cancelling. Please spell out the refund rules (how much you get back depending on how much notice you give) in the booking-cancelled email.",
+      "kinds": ["decision", "code", "convention"],
+      "relevant": [
+        {"path": "docs/decisions/0012-refund-policy-v2-tiered.md", "lines": [29, 50], "note": "current tiered policy: 7 days / 48 hours, closures full, no-shows nothing"},
+        {"path": "src/hallpass/billing/refunds.py", "lines": [73, 95], "note": "decide(): the tiers as implemented"},
+        {"path": "src/hallpass/notifications/templates/booking_cancelled.email.txt", "lines": [1, 7], "note": "the template to edit"},
+        {"path": "docs/notifications/adding-a-notification.md", "lines": [9, 13], "note": "placeholders must exist in context or the send fails permanently"},
+        {"path": "src/hallpass/notifications/recipients.py", "lines": [50, 63], "note": "_booking_context: placeholders available for booking emails"}
+      ],
+      "forbidden": [
+        {"path": "docs/decisions/0007-refund-policy-v1.md", "lines": [20, 27], "note": "superseded v1 policy (full refund up to 24h before)"}
+      ]
+    },
+    {
+      "id": "H16",
+      "category": "superseded_trap",
+      "task": "Product owner wants a 'Book the next free slot' button on each space page: given a length (say 1 hour), find the earliest start time from now on that a resident could actually book. Please build the backend for it.",
+      "kinds": ["decision", "code", "test", "doc"],
+      "relevant": [
+        {"path": "docs/decisions/0011-thirty-minute-slots.md", "lines": [26, 41], "note": "30-minute grid in local time; legacy quarter-hour bookings must still block slots"},
+        {"path": "src/hallpass/bookings/slots.py", "lines": [23, 34], "note": "SLOT_MINUTES, resident max length, legacy 15-minute note"},
+        {"path": "src/hallpass/bookings/availability.py", "lines": [139, 191], "note": "search() with min_length and the public lead time, to reuse"},
+        {"path": "docs/bookings/availability-search.md", "lines": [62, 66], "note": "legacy :15/:45 bookings block every slot they touch"},
+        {"path": "tests/bookings/test_availability.py", "lines": [103, 122], "note": "test for a legacy quarter-hour booking blocking neighbours"}
+      ],
+      "forbidden": [
+        {"path": "docs/decisions/0003-fifteen-minute-slots.md", "lines": [22, 33], "note": "superseded 15-minute grid"}
+      ]
+    },
+    {
+      "id": "H17",
+      "category": "assumption_trap",
+      "task": "Finance request: the Eastfield Allotment Society (a registered charity) want their monthly hall invoice to show their charity number and say 'VAT exempt - registered charity' on every line. Can you add that to the invoice PDF data?",
+      "kinds": ["constraint", "code", "known_issue", "doc"],
+      "relevant": [
+        {"path": "docs/billing/assumptions-vat.md", "lines": [12, 59], "note": "charity VAT exemption is an unconfirmed assumption; what changes if wrong", "expected_status": "assumption"},
+        {"path": "src/hallpass/billing/vat.py", "lines": [67, 75], "note": "treatment_for: charity branch marked as assumption"},
+        {"path": "src/hallpass/billing/invoices.py", "lines": [236, 267], "note": "vat_breakdown: per-line VAT computed at render time"},
+        {"path": "docs/billing/invoicing.md", "lines": [37, 50], "note": "VAT on invoices, re-rendering changes old invoices"},
+        {"path": "docs/known-issues/billing.md", "lines": [41, 46], "note": "HP-466 blocked on Finance"}
+      ]
+    },
+    {
+      "id": "H18",
+      "category": "assumption_trap",
+      "task": "Comms team want to send a text to everyone who has signed up for SMS booking reminders, letting them know the autumn timetable is out. Can you add a one-off bulk send using our existing SMS setup?",
+      "kinds": ["constraint", "code", "known_issue", "doc"],
+      "relevant": [
+        {"path": "docs/notifications/reminders.md", "lines": [26, 46], "note": "SMS opt-in is an unverified assumption; don't build on it", "expected_status": "assumption"},
+        {"path": "docs/privacy.md", "lines": [46, 58], "note": "consent rules: marketing opt-in only, SMS reminder consent unverified"},
+        {"path": "docs/notifications/adding-a-notification.md", "lines": [14, 17], "note": "anything promotional is email only, with marketing consent"},
+        {"path": "src/hallpass/accounts/consents.py", "lines": [8, 35], "note": "consent purposes and defaults; imported consent rows"},
+        {"path": "docs/known-issues/accounts-and-notifications.md", "lines": [39, 44], "note": "known issue: are SMS reminders really opt-in?"}
+      ]
+    },
+    {
+      "id": "H19",
+      "category": "missing_information",
+      "task": "Sam wants to start flagging residents with repeated no-shows on the staff screen. Before I scope it: do we have any investigation or write-up of no-show rates, especially how many 'no-shows' are really staff forgetting to mark people in? And what exists in the code today?",
+      "kinds": ["finding", "code", "doc"],
+      "relevant": [
+        {"path": "docs/meetings/2024-05-14-holds-and-no-shows.md", "lines": [48, 65], "note": "agreed flag-not-suspend approach; flag never built; revisit with data"},
+        {"path": "src/hallpass/bookings/lifecycle.py", "lines": [371, 387], "note": "mark_no_show; comment claims accounts does the flag"},
+        {"path": "db/migrations/0009_no_show_and_flag_rollout.sql", "lines": [9, 17], "note": "no_show status and no_show_marked_by column"},
+        {"path": "src/hallpass/reports/usage.py", "lines": [1, 9], "note": "usage report already counts no-shows separately"},
+        {"path": "docs/notifications/reminders.md", "lines": [8, 10], "note": "only rough no-show percentages, in passing", "expected_status": "assumption"}
+      ],
+      "expected_unresolved": ["finding"]
+    },
+    {
+      "id": "H20",
+      "category": "missing_information",
+      "task": "Leisure Services say it was agreed that when a closure wipes out weeks of a club's block booking, the season gets extended at the end to make up the lost sessions. Find that decision and implement it.",
+      "kinds": ["decision", "code", "known_issue", "test"],
+      "relevant": [
+        {"path": "docs/bookings/blackouts-and-series.md", "lines": [13, 30], "note": "current behaviour for closures before and after a series exists"},
+        {"path": "docs/bookings/blackouts-and-series.md", "lines": [49, 66], "note": "auto-extend is only one option on the table; nothing decided"},
+        {"path": "docs/known-issues/bookings.md", "lines": [116, 120], "note": "series vs closures listed as an undecided question"},
+        {"path": "src/hallpass/bookings/blackouts.py", "lines": [164, 167], "note": "TODO: decide what happens to series"},
+        {"path": "tests/bookings/test_blackouts.py", "lines": [60, 75], "note": "test pins 'series not extended' and says not to change it without a decision"}
+      ],
+      "expected_unresolved": ["decision"]
+    }
+  ]
+}
