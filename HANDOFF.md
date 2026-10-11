@@ -3,7 +3,7 @@
 Read this first when resuming work in a new session. Keep it current: update
 it at the end of every milestone, and before a session's context runs out.
 
-**Last updated:** 2026-10-11, phase 1c finished (incl. two-step retrieval); owner decision pending.
+**Last updated:** 2026-10-11, phase 2 pilot done; owner decision pending on the full run.
 
 ## Resume prompt
 
@@ -20,7 +20,7 @@ Paste into a new chat opened in `C:\WIP\projects\Agent-Memory`:
 | 1 Measure retrieval | done on the tiny sample: gate 1 passed narrowly (recall 0.83) |
 | 1b Larger corpus | done: Hallpass (~140k tokens, 20 tasks). **Gate 1 not passed**: recall 0.56, precision 0.28, 2 missed "not found" cases |
 | 1c Improve retrieval | **done**. Best: hybrid + 2 hops, Hallpass recall 0.61 / precision 0.32; gate 1 (0.80) not reached by any single-request method. **Owner decision pending** |
-| 2 Agent comparison | designed in docs/benchmark-methodology.md, not built |
+| 2 Agent comparison | **pilot done** (16 Haiku runs, ~$2.35 API-equivalent). Pipeline works; B used the service in only 2/4 runs. Full run not started: **owner decision pending** |
 | 3–5 | planned, see ROADMAP.md |
 
 Diagnosis (benchmarks/README.md): ranking is the main loss (recall 0.56 →
@@ -28,19 +28,20 @@ Diagnosis (benchmarks/README.md): ranking is the main loss (recall 0.56 →
 23% of the corpus; "not found" can't be detected by zero matches in a big
 corpus; the token budget ignores rendering overhead (bug).
 
-## Next step: owner decision pending
+## Next step: owner decision pending (phase 2 full run)
 
-Phase 1c is finished (benchmarks/README.md, "Phase 1c conclusion"). Option A
-(two-step retrieval) was built and measured: query drift with BM25 seeds,
-small gain with hybrid seeds (0.61). Options now put to the owner:
+Pilot results and lessons: benchmarks/README.md, "Phase 2 pilot". Tooling:
+`ctxo eval-agent` (evaluation/agent_eval.py), `ctxo mcp` (agent_interface/mcp_server.py),
+rubrics in benchmarks/tasks/hallpass.rubrics.json.
 
-- **Phase 2** (recommended): build the agent comparison, with the service
-  offered to strategy B as a tool it can call repeatedly. Config for B:
-  `--retrieval hybrid --hops 2` (fallback bm25). Needs Claude calls on the
-  subscription, so confirm the run budget with the owner first.
-- **Held-out check**: a fresh agent writes ~15 new tasks; confirms the
-  config choice isn't tuned to the dev set (~0.4M subagent tokens).
-- **Label check**: a second agent labels the same 20 tasks independently.
+Before the full run, decide with the owner:
+- **Strategy B's instruction.** Offered-only, the agent ignored the tool half
+  the time. Options: tell B to call request_context first (fairness caveat:
+  B gets an extra instruction), or run both B-offered and B-instructed.
+- **Model** (Haiku as in the pilot, or Sonnet ~3× the cost) and **size**
+  (20 tasks × strategies × 3 repetitions ≈ 240 runs; Haiku ≈ $30–40
+  API-equivalent from the pilot's per-run costs, on the subscription).
+- Strategy B needs Ollama running (hybrid retrieval); see below.
 
 Embedding setup if needed again: start the toolbox Ollama with
 `OLLAMA_MODELS=C:\WIP\tools\ollama\models C:\WIP\tools\ollama\ollama.exe serve`;

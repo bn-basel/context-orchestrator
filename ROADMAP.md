@@ -73,7 +73,13 @@ configuration choice. The criteria in
 [benchmarks/gate1.json](benchmarks/gate1.json) stay as committed: changing them
 after seeing results would be moving the goalposts.
 
-## Phase 2: agent comparison
+## Phase 2: agent comparison (pilot done)
+
+- [x] MCP server (`ctxo mcp`) and runner (`ctxo eval-agent`) for strategies
+      A–D via `claude -p`, with isolation flags, stream parsing, usage,
+      regex rubric grading and sanitised raw output.
+- [x] Pilot: 4 tasks × 4 strategies × 1 run on Haiku (results in
+      benchmarks/README.md). Strategy B used the tool in only 2 of 4 runs.
 
 - [ ] Benchmark runner for strategies A (full context) and B (on-demand
       retrieval), then C (no context) and D (oracle), via `claude -p` with the
