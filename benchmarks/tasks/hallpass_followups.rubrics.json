@@ -1,0 +1,280 @@
+{
+  "schema_version": 1,
+  "suite": "hallpass_followups",
+  "description": "Rubrics for the follow-up tasks, written with the tasks before any run; each example_pass is checked against its own rubric when loaded.",
+  "rubrics": {
+    "F01": {
+      "checks": [
+        {
+          "id": "cause",
+          "description": "later occurrences are computed by adding weeks in UTC",
+          "any_of": [
+            "(add|step|arithmetic|plus)\\w*.{0,60}\\butc\\b",
+            "\\butc\\b.{0,60}(week|timedelta|arithmetic|step)"
+          ]
+        },
+        {
+          "id": "extend",
+          "description": "names extend_series as the renewal path",
+          "any_of": [
+            "extend_series"
+          ]
+        },
+        {
+          "id": "original_first",
+          "description": "extend computes from the series' original first date",
+          "any_of": [
+            "(original|series'?s?)\\s+first[\\s_-]*date",
+            "first_date"
+          ]
+        },
+        {
+          "id": "local_fix",
+          "description": "steps local dates / converts each occurrence with local_to_utc",
+          "any_of": [
+            "local[\\s_-]*(date|wall[\\s-]*clock|start[\\s_-]*time)",
+            "local_to_utc"
+          ]
+        },
+        {
+          "id": "materialised",
+          "description": "flags the clash with already-booked rows (ADR 0013 / inconsistency)",
+          "any_of": [
+            "0013",
+            "already[\\s-]+(materiali[sz]ed|booked)",
+            "inconsisten"
+          ]
+        },
+        {
+          "id": "tests",
+          "description": "the strict xfail / pinned HP-503 tests flip",
+          "any_of": [
+            "xfail",
+            "test_hp503",
+            "pinned"
+          ]
+        }
+      ],
+      "must_not": [
+        {
+          "id": "adr_done",
+          "description": "claims ADR 0013 is accepted or implemented",
+          "any_of": [
+            "ADR\\s*0?013\\s+(is|was|has\\s+been)\\s+(accepted|agreed|implemented|approved)"
+          ]
+        }
+      ],
+      "example_pass": "Cause (HP-503): extend_series reuses occurrence_windows, which converts the series' original first_date with local_to_utc and then adds weeks in UTC, so a renewal after the October change lands at 18:00. Fix: step local dates from booking_series.local_start_time and convert each occurrence with local_to_utc. Risk: rows already booked keep the old UTC times, which ADR 0013 (still proposed) warns makes series inconsistent; find them by comparing each booking's local time with the series' local_start_time. The strict xfail tests and test_hp503 pin flip."
+    },
+    "F05": {
+      "checks": [
+        {
+          "id": "preview",
+          "description": "names refund_preview",
+          "any_of": [
+            "refund_preview"
+          ]
+        },
+        {
+          "id": "hardcoded",
+          "description": "preview ignores the flag (use_v2=True hard-coded)",
+          "any_of": [
+            "use_v2\\s*=\\s*True",
+            "hard[\\s-]*cod",
+            "ignores?\\s+(the\\s+)?(refund_policy_v2\\s+)?flag",
+            "always\\s+(uses?\\s+)?v2"
+          ]
+        },
+        {
+          "id": "v1_rule",
+          "description": "the v1 rule: 24 hours, full or nothing (V1_FULL / V1_NONE)",
+          "any_of": [
+            "24\\s*h",
+            "v1_full",
+            "v1_none"
+          ]
+        },
+        {
+          "id": "cancel_time",
+          "description": "the real refund reads the flag when the booking is cancelled",
+          "any_of": [
+            "refund_requested",
+            "(actual|real|issued)\\s+refund.{0,40}(flag|refund_policy_v2|use_v2)"
+          ]
+        },
+        {
+          "id": "cache",
+          "description": "flag values are cached, so a flip takes up to a minute",
+          "any_of": [
+            "cache",
+            "FLAG_CACHE_SECONDS",
+            "60\\s*(s\\b|sec)"
+          ]
+        },
+        {
+          "id": "toggle",
+          "description": "flipped via the superuser toggle (audited)",
+          "any_of": [
+            "toggle_flag",
+            "set_flag",
+            "superuser",
+            "/flags/"
+          ]
+        }
+      ],
+      "must_not": [],
+      "example_pass": "Not safe yet: refund_preview hard-codes use_v2=True, so the cancel page would keep showing v2 while refund_requested reads refund_policy_v2 at cancel time and pays v1 (V1_FULL at 24h or more, else V1_NONE). Fix refund_preview and the refund-preview endpoint first, add tests next to the v1-behind-flag tests. Flip via the superuser toggle_flag endpoint (audited); is_enabled caches flags for FLAG_CACHE_SECONDS, so allow a minute."
+    },
+    "F07": {
+      "checks": [
+        {
+          "id": "flags_table",
+          "description": "uses the feature_flags table / ADR 0014",
+          "any_of": [
+            "feature_flags",
+            "0014",
+            "ADR[\\s-]*14"
+          ]
+        },
+        {
+          "id": "migration_off",
+          "description": "adds the flag in a migration, default off",
+          "any_of": [
+            "enabled\\s*=\\s*false",
+            "default(s|ed)?\\s+(to\\s+)?off",
+            "off\\s+by\\s+default",
+            "disabled\\s+by\\s+default"
+          ]
+        },
+        {
+          "id": "is_enabled",
+          "description": "checks it with flags.is_enabled",
+          "any_of": [
+            "is_enabled"
+          ]
+        },
+        {
+          "id": "checkout",
+          "description": "gates start_checkout / the checkout endpoint",
+          "any_of": [
+            "start_checkout",
+            "/checkout"
+          ]
+        },
+        {
+          "id": "toggle",
+          "description": "flipped through the existing superuser toggle",
+          "any_of": [
+            "toggle_flag",
+            "set_flag",
+            "/flags/",
+            "superuser"
+          ]
+        }
+      ],
+      "must_not": [],
+      "example_pass": "Add a payments_paused flag row in a new migration with enabled = false, following ADR 0014 and the feature_flags INSERT pattern. In billing.payments.start_checkout (and so POST /checkout) check flags.is_enabled('payments_paused') and refuse with a friendly error. The duty manager flips it with the superuser toggle_flag endpoint (audited). Invoice customers never reach card checkout, so they are unaffected."
+    },
+    "F10": {
+      "checks": [
+        {
+          "id": "verify",
+          "description": "changes verify_magic_link",
+          "any_of": [
+            "verify_magic_link"
+          ]
+        },
+        {
+          "id": "setting",
+          "description": "adds a staff TTL setting next to magic_link_ttl_minutes",
+          "any_of": [
+            "magic_link_ttl",
+            "MAGIC_LINK_TTL"
+          ]
+        },
+        {
+          "id": "no_schema",
+          "description": "no schema change: last_login_at already exists (migration 0010)",
+          "any_of": [
+            "0010",
+            "already\\s+(has|have|added|exists?|there)",
+            "no\\s+(schema\\s+change|migration)"
+          ]
+        },
+        {
+          "id": "last_login",
+          "description": "names staff_users.last_login_at",
+          "any_of": [
+            "last_login_at"
+          ]
+        },
+        {
+          "id": "audit",
+          "description": "records logins with write_audit / audit_log",
+          "any_of": [
+            "write_audit",
+            "audit_log"
+          ]
+        },
+        {
+          "id": "tests",
+          "description": "updates the auth tests",
+          "any_of": [
+            "test_auth",
+            "test_staff_link"
+          ]
+        }
+      ],
+      "must_not": [],
+      "example_pass": "No schema change: migration 0010 already added staff_users.last_login_at. Add staff_magic_link_ttl_minutes (10) next to magic_link_ttl_minutes in config and use it in verify_magic_link for staff links; record each staff login with write_audit and set last_login_at. Update test_auth (test_staff_link_can_be_reused documents the old gap)."
+    },
+    "F12": {
+      "checks": [
+        {
+          "id": "reconcile_day",
+          "description": "calls reconcile_day",
+          "any_of": [
+            "reconcile_day"
+          ]
+        },
+        {
+          "id": "no_dup_rows",
+          "description": "exceptions are stored with ON CONFLICT DO NOTHING",
+          "any_of": [
+            "on\\s+conflict",
+            "_store",
+            "reconciliation_exceptions"
+          ]
+        },
+        {
+          "id": "one_email",
+          "description": "the email is deduplicated per day",
+          "any_of": [
+            "dedupe",
+            "recon:",
+            "one\\s+(email|message)\\s+(per|a)\\s+day"
+          ]
+        },
+        {
+          "id": "role",
+          "description": "finance-only endpoint via require_role",
+          "any_of": [
+            "require_role",
+            "finance.{0,30}(role|only|superuser)"
+          ]
+        },
+        {
+          "id": "hp489",
+          "description": "links it to HP-489 / missed days",
+          "any_of": [
+            "HP-489",
+            "back[\\s-]*fill",
+            "missed\\s+days"
+          ]
+        }
+      ],
+      "must_not": [],
+      "example_pass": "Add POST /reconciliation/<day> in api/staff.py guarded by require_role(finance, superuser), like invoices/run, calling reconcile_day for that day. Re-runs are safe: _store inserts reconciliation_exceptions with ON CONFLICT DO NOTHING and _email_finance uses dedupe key recon:<day>, so one email per day. Also useful for the HP-489 missed days backfill."
+    }
+  }
+}

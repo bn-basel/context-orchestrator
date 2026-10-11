@@ -1,0 +1,384 @@
+{
+  "schema_version": 1,
+  "suite": "hallpass_followups",
+  "project": "../corpora/hallpass",
+  "description": "Follow-up tasks for the memory experiment: each continues an earlier Hallpass task (field 'after') in the same area, so a memory of the earlier task should help. Written by Claude (Opus 5.5) on 2026-10-11 before any run that uses them; labels were checked against the corpus by hand.",
+  "tasks": [
+    {
+      "id": "F01",
+      "after": "H01",
+      "category": "bugfix",
+      "task": "Sue again (bookings officer): in January we renewed Riverside FC's Saturday block booking with Extend on the staff screen, and every new Saturday kick-off came out at 18:00 instead of 19:00. Can renewing a series keep the club's local start time? Don't rewrite rows that are already booked in this change; just tell me how we'd find the ones that are wrong.",
+      "kinds": [
+        "known_issue",
+        "code",
+        "test",
+        "decision"
+      ],
+      "relevant": [
+        {
+          "path": "docs/known-issues/bookings.md",
+          "lines": [
+            67,
+            93
+          ],
+          "note": "HP-503, incl. the extend_series variant and why the local-date fix was parked"
+        },
+        {
+          "path": "src/hallpass/bookings/recurring.py",
+          "lines": [
+            69,
+            95
+          ],
+          "note": "occurrence_windows adds weeks to the first UTC start"
+        },
+        {
+          "path": "src/hallpass/bookings/recurring.py",
+          "lines": [
+            315,
+            364
+          ],
+          "note": "extend_series recomputes from the series' original first_date and skips rows before the old last_date"
+        },
+        {
+          "path": "src/hallpass/core/tz.py",
+          "lines": [
+            42,
+            50
+          ],
+          "note": "local_to_utc, the per-occurrence conversion"
+        },
+        {
+          "path": "tests/bookings/test_recurring.py",
+          "lines": [
+            63,
+            85
+          ],
+          "note": "strict xfails and the pinned wrong behaviour that flip with a fix"
+        },
+        {
+          "path": "src/hallpass/api/staff.py",
+          "lines": [
+            42,
+            51
+          ],
+          "note": "the staff Extend endpoint"
+        },
+        {
+          "path": "docs/decisions/0013-local-wall-clock-slot-boundaries.md",
+          "lines": [
+            26,
+            34
+          ],
+          "note": "why fixing only the arithmetic makes extended series inconsistent (ADR proposed)",
+          "expected_status": "unverified"
+        }
+      ]
+    },
+    {
+      "id": "F05",
+      "after": "H05",
+      "category": "change_impact",
+      "task": "Finance want to go back to the old refund rule (full refund up to 24 hours before, nothing after) for the Christmas fortnight by switching the refund policy flag off, then on again in January. Is that safe to do as things stand, and what has to change first so the cancel page, the refund actually issued and our records agree?",
+      "kinds": [
+        "known_issue",
+        "code",
+        "test",
+        "decision"
+      ],
+      "relevant": [
+        {
+          "path": "docs/known-issues/billing.md",
+          "lines": [
+            98,
+            102
+          ],
+          "note": "known issue: refund_preview ignores refund_policy_v2"
+        },
+        {
+          "path": "src/hallpass/billing/refunds.py",
+          "lines": [
+            305,
+            311
+          ],
+          "note": "refund_preview hard-codes use_v2=True"
+        },
+        {
+          "path": "src/hallpass/billing/refunds.py",
+          "lines": [
+            163,
+            170
+          ],
+          "note": "the real refund reads the flag at cancellation time"
+        },
+        {
+          "path": "src/hallpass/billing/refunds.py",
+          "lines": [
+            73,
+            96
+          ],
+          "note": "decide(): the v1 branch (V1_FULL / V1_NONE at 24 hours)"
+        },
+        {
+          "path": "src/hallpass/api/bookings.py",
+          "lines": [
+            77,
+            85
+          ],
+          "note": "refund-preview endpoint"
+        },
+        {
+          "path": "tests/billing/test_refunds.py",
+          "lines": [
+            47,
+            58
+          ],
+          "note": "v1-behind-flag tests"
+        },
+        {
+          "path": "src/hallpass/core/flags.py",
+          "lines": [
+            64,
+            94
+          ],
+          "note": "is_enabled: cached values (refreshed after FLAG_CACHE_SECONDS), unknown = off"
+        },
+        {
+          "path": "src/hallpass/api/staff.py",
+          "lines": [
+            140,
+            146
+          ],
+          "note": "superuser flag toggle endpoint"
+        }
+      ]
+    },
+    {
+      "id": "F07",
+      "after": "H07",
+      "category": "feature_constrained_by_decision",
+      "task": "Following up the payments banner: during a Paybridge outage the contact centre also want residents stopped from starting a card checkout at all (right now they end up on an error page). Add a switch for that too, which the duty manager can flip without a deploy. Clubs paying by invoice must not be affected.",
+      "kinds": [
+        "decision",
+        "convention",
+        "code",
+        "schema",
+        "doc"
+      ],
+      "relevant": [
+        {
+          "path": "docs/runbooks/paybridge-outage.md",
+          "lines": [
+            23,
+            28
+          ],
+          "note": "outage runbook: banner flag missing, invoice customers unaffected"
+        },
+        {
+          "path": "docs/decisions/0014-feature-flags-in-database.md",
+          "lines": [
+            27,
+            43
+          ],
+          "note": "flags table, is_enabled, superuser flips with audit, added by migration default off"
+        },
+        {
+          "path": "docs/conventions.md",
+          "lines": [
+            80,
+            86
+          ],
+          "note": "add the flag row in a migration with enabled = false"
+        },
+        {
+          "path": "db/migrations/0007_feature_flags.sql",
+          "lines": [
+            7,
+            19
+          ],
+          "note": "feature_flags table and INSERT pattern"
+        },
+        {
+          "path": "src/hallpass/core/flags.py",
+          "lines": [
+            64,
+            94
+          ],
+          "note": "is_enabled semantics (cache, unknown = off)"
+        },
+        {
+          "path": "src/hallpass/api/staff.py",
+          "lines": [
+            140,
+            146
+          ],
+          "note": "existing flag toggle endpoint (superuser only)"
+        },
+        {
+          "path": "src/hallpass/billing/payments.py",
+          "lines": [
+            65,
+            90
+          ],
+          "note": "start_checkout, where a card checkout begins"
+        },
+        {
+          "path": "src/hallpass/api/payments.py",
+          "lines": [
+            26,
+            35
+          ],
+          "note": "POST /checkout endpoint"
+        }
+      ]
+    },
+    {
+      "id": "F10",
+      "after": "H10",
+      "category": "schema_or_migration",
+      "task": "Second pen-test item for staff logins: staff login links should expire after 10 minutes instead of the residents' 20, configurable like the existing setting, and every staff login should be recorded in the audit log. Do we need a schema change for any of this?",
+      "kinds": [
+        "schema",
+        "code",
+        "test",
+        "known_issue",
+        "decision"
+      ],
+      "relevant": [
+        {
+          "path": "src/hallpass/accounts/auth.py",
+          "lines": [
+            100,
+            125
+          ],
+          "note": "verify_magic_link: one TTL for both kinds; staff branch returns without recording"
+        },
+        {
+          "path": "db/migrations/0010_release_3_2.sql",
+          "lines": [
+            21,
+            24
+          ],
+          "note": "staff_users.last_login_at already added in 3.2"
+        },
+        {
+          "path": "docs/known-issues/accounts-and-notifications.md",
+          "lines": [
+            64,
+            67
+          ],
+          "note": "known issue says a migration is needed (outdated)"
+        },
+        {
+          "path": "docs/decisions/0004-passwordless-magic-links.md",
+          "lines": [
+            52,
+            54
+          ],
+          "note": "single-use via last_login_at was intended for staff too"
+        },
+        {
+          "path": "tests/accounts/test_auth.py",
+          "lines": [
+            76,
+            81
+          ],
+          "note": "test documenting the staff reuse gap"
+        },
+        {
+          "path": "src/hallpass/core/config.py",
+          "lines": [
+            63,
+            65
+          ],
+          "note": "magic_link_ttl_minutes setting"
+        },
+        {
+          "path": "src/hallpass/core/config.py",
+          "lines": [
+            104,
+            105
+          ],
+          "note": "HALLPASS_MAGIC_LINK_TTL_MINUTES env var"
+        },
+        {
+          "path": "src/hallpass/core/audit.py",
+          "lines": [
+            15,
+            30
+          ],
+          "note": "write_audit helper (actor staff)"
+        }
+      ]
+    },
+    {
+      "id": "F12",
+      "after": "H12",
+      "category": "cross_area",
+      "task": "Janet in Finance again: she'd like a 'reconcile this day' button in the back office for finance staff, so a developer doesn't have to run the reconciliation by hand after an incident. Running the same day twice mustn't create duplicate exceptions or send Finance a second email.",
+      "kinds": [
+        "known_issue",
+        "code",
+        "doc"
+      ],
+      "relevant": [
+        {
+          "path": "docs/known-issues/billing.md",
+          "lines": [
+            13,
+            25
+          ],
+          "note": "HP-489 and the manual per-day runs"
+        },
+        {
+          "path": "src/hallpass/billing/reconciliation.py",
+          "lines": [
+            97,
+            125
+          ],
+          "note": "reconcile_day"
+        },
+        {
+          "path": "src/hallpass/billing/reconciliation.py",
+          "lines": [
+            128,
+            141
+          ],
+          "note": "_store: ON CONFLICT DO NOTHING, so re-runs add no duplicate exceptions"
+        },
+        {
+          "path": "src/hallpass/billing/reconciliation.py",
+          "lines": [
+            143,
+            162
+          ],
+          "note": "_email_finance: one outbox email per day (dedupe key)"
+        },
+        {
+          "path": "src/hallpass/worker.py",
+          "lines": [
+            123,
+            129
+          ],
+          "note": "the worker's reconcile_paybridge job"
+        },
+        {
+          "path": "docs/runbooks/paybridge-outage.md",
+          "lines": [
+            72,
+            76
+          ],
+          "note": "manual per-day reconciliation command"
+        },
+        {
+          "path": "src/hallpass/api/staff.py",
+          "lines": [
+            104,
+            114
+          ],
+          "note": "manual finance trigger pattern (invoices/run, finance or superuser)"
+        }
+      ]
+    }
+  ]
+}

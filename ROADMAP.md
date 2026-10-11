@@ -120,14 +120,18 @@ models, graders) is untested.
 - [x] Hybrid retrieval (BM25 + local embeddings) and follow-up hops, added
       once keyword search had demonstrably stalled.
 
-## Next: candidates, in order of evidence
+## Phase 4: pruning and memory in our own loop (built; runs pending)
 
-- [ ] **In-place context pruning** in an agent loop that can edit its own
-      context (Claude API context editing). Largest estimated lever; check its
-      interaction with prompt caching.
-- [ ] **Multi-task benchmark with a memory write path**: agents propose
-      verified findings (stored with provenance and status, applied only after
-      review), and later tasks on the same project start ahead.
+- [x] Own agent loop with client-side pruning, measured usage and spending
+      brakes (`ctxo loop-probe`, `ctxo loop-eval`).
+- [x] Memory write path: anchored, unreviewed findings (`record_finding`),
+      served before search results, flagged stale when the file changes.
+- [x] Five follow-up tasks with rubrics, committed before any run. Offline
+      ceiling: one request's recall 0.24 → 0.45 with ideal parent memory.
+- [ ] 4a: pruning check, 10 runs (needs the owner's OpenRouter key).
+- [ ] 4b: memory check, 15 runs.
+
+## Next: candidates, in order of evidence
 - [ ] **Robustness**: a second model, a real open-source corpus, an
       independent label and rubric check, and a held-out task set.
 - [ ] **Several specialist agents sharing one store**, with per-agent

@@ -3,7 +3,7 @@
 Development notes for resuming work in a new session. Keep them current:
 update at the end of every milestone and before a session's context runs out.
 
-**Last updated:** 2026-10-11. Phases 0–3d done; repository prepared for
+**Last updated:** 2026-10-11. Phases 0–3d done; phase 4 built (runs pending); repository prepared for
 publication (still private); next direction open.
 
 ## Resume prompt
@@ -22,37 +22,37 @@ Paste into a new session opened in the repository folder:
 | 1 / 1b / 1c Retrieval | done: realistic corpus (Hallpass, ~140k tokens, 20 tasks); best single-request recall 0.61 (hybrid + 2 hops); gate 1 (0.80) not passed |
 | 2 Agent comparison | done: 300 Haiku runs; service used first (B2) 0.79× cost vs exploring alone, no detectable quality loss; full context 2× cost |
 | 3a–3d | done: compact excerpts (no agent benefit), trace analysis (35% re-reads), what-if replay (pruning −33% to −53%, untested), reader sub-agent (worse) |
+| 4 Pruning + memory | built: own agent loop with pruning, anchored findings (record_finding), 5 follow-up tasks; offline ceiling recall 0.24 → 0.45; runs need the owner's OpenRouter key |
 | Publication | README (tested / found / think), results chart (docs/img), findings, architecture; repository private until the owner decides |
 
 The full story with numbers: [docs/findings.md](docs/findings.md); every run
 with caveats: [benchmarks/README.md](benchmarks/README.md).
 
-## Next step: open
+## Next step: phase 4 runs (built and committed; waiting for the owner's key)
 
-Candidates, in order of evidence (see docs/findings.md, "What would move this
-forward"):
+Everything for phase 4 is built and tested offline; plan and pre-selected
+tasks are in benchmarks/README.md ("Phase 4 plan"). Order:
 
-1. **In-place context pruning** with an agent loop that can edit its own
-   context (Claude API context editing, `clear_tool_uses`). Largest estimated
-   saving. Needs API access with usage billing, which the owner must approve.
-   **Blocked (2026-10-11):** no API credentials on the machine; the owner
-   must create an API key and set `ANTHROPIC_API_KEY` themselves.
-   (A "file map" for targeted reads was estimated at most -8% and not run.)
-   **Route found (2026-10-11):** the owner offered an OpenRouter key capped at
-   $5. Subscription logins can't drive our own loop (Anthropic's terms limit
-   them to Claude Code). With our own loop, pruning is plain client-side
-   message editing, so no beta feature is needed. Compare pruned vs unpruned
-   in the same loop, not against the Claude Code runs. The key goes in the
-   `OPENROUTER_API_KEY` environment variable, set by the owner; never in chat
-   or files.
-2. **Multi-task benchmark** with a memory write path: agents record verified
-   findings so later tasks on the same project start ahead. **Offline check
-   (2026-10-11):** the 20 Hallpass tasks barely share needed context (at most
-   1 overlapping labelled section of 5–6 per pair), so they can't show a
-   memory effect. This needs purpose-written follow-up tasks in the same area
-   as an earlier one.
-3. **Robustness:** a second model, a real open-source corpus, an independent
-   label and rubric check.
+1. The owner creates an OpenRouter key **capped at $5** and sets it as the
+   Windows user environment variable `OPENROUTER_API_KEY`, then restarts the
+   app. Never ask for the key in chat or write it to a file. Subscription
+   logins can't drive our own loop (Anthropic's terms limit them to Claude
+   Code).
+2. `uv sync --group loop`, then `uv run ctxo loop-probe` (one tiny call):
+   check that the model id resolves, usage includes cache fields, the
+   measured cost lookup works and the key shows a limit.
+3. **4a pruning, 10 runs** (L vs LP on H17, H13, H11, H19, H09). Expected
+   roughly $0.3–0.8 (estimate: our loop's system prompt is far smaller than
+   Claude Code's). Tell the owner the count and estimate before starting.
+4. **4b memory, 15 runs** (5 parent runs, 5 follow-ups on memory, 5 on an
+   empty one). Similar cost per run.
+5. Only after a clear signal: more runs, or hybrid retrieval for findings.
+
+Other candidates: robustness (a second model, a real open-source corpus, an
+independent label and rubric check). A "file map" for targeted reads was
+estimated at most −8% and not run. The original 20 tasks barely share needed
+context (at most 1 labelled section per pair), which is why 4b has its own
+follow-up tasks.
 
 ## Rules for experiments
 

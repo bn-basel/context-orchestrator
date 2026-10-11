@@ -525,3 +525,73 @@ for the session or it refuses to start.
 Not scaled up. This matches the argument behind Meta's Context Language
 Models: replacing exact context with summaries loses information, while
 editing context in place (removing what's stale) keeps it.
+
+## Phase 4 plan: own agent loop (pruning and memory), committed before any run
+
+Claude Code decides what stays in its context, so pruning cannot be tested
+through it. Phase 4 uses a small agent loop of our own
+(`evaluation/own_loop.py`): read-only `read_file` / `grep` / `glob`,
+optionally `request_context` (keyword retrieval with two hops) and
+`record_finding`, calling Haiku 4.5 through OpenRouter's Anthropic-compatible
+API with the Anthropic provider pinned. **Its numbers are compared only with
+each other**, never with the Claude Code runs above (different harness,
+system prompt and tools).
+
+Every token count is measured from the API's usage. Cost is shown twice:
+estimated from list prices, and measured as OpenRouter's reported charge.
+The owner's key is capped at $5 on OpenRouter; the loop also stops itself at
+an estimated $2 per experiment and $0.60 per run.
+
+**4a, pruning (10 runs).** Arms `L` (file tools only) and `LP` (the same,
+plus pruning). Pruning is client-side message editing: once uncleared tool
+results exceed ~12k tokens (estimated), every result except the 3 most recent
+is replaced by a one-line stub naming the call; it acts only when at least
+~4k tokens can go, which keeps prompt-cache rewrites rare. Tasks are
+pre-selected by rule, not by result: ranks 1, 5, 9, 13 and 17 by median
+input tokens of the phase 2 C runs (heaviest to light): **H17, H13, H11,
+H19, H09**. 5 tasks × 2 arms × 1 run.
+
+```bash
+uv sync --group loop
+uv run ctxo loop-probe
+uv run ctxo loop-eval prune benchmarks/tasks/hallpass.json --rubrics benchmarks/tasks/hallpass.rubrics.json --arms L,LP --tasks H17,H13,H11,H19,H09
+```
+
+**4b, memory (15 runs).** Five follow-up tasks
+(`tasks/hallpass_followups.json`, written with their rubrics before any run)
+each continue an earlier task in the same area (F01 after H01, F05 after
+H05, F07 after H07, F10 after H10, F12 after H12) and share 4–6 of their 7–8
+labelled sections with it. The agent may record findings (`record_finding`:
+a claim plus a file, a line range and a verbatim quote that is checked against
+those lines). Per follow-up: the parent runs first and leaves findings, and
+the follow-up then runs on that memory (`SM`); separately the follow-up runs
+on an empty memory (`SM0`). Both follow-up arms have the same tools and
+instructions; only the memory differs.
+
+```bash
+uv run ctxo loop-eval memory benchmarks/tasks/hallpass_followups.json --rubrics benchmarks/tasks/hallpass_followups.rubrics.json --parents benchmarks/tasks/hallpass.json --parent-rubrics benchmarks/tasks/hallpass.rubrics.json
+```
+
+With 5 pairs, only a large effect (around 50%) can show; anything smaller
+needs more runs, decided only after this check.
+
+### Phase 4b offline ceiling (no model calls)
+
+`benchmarks/memory_offline.py` asks the service once per follow-up task,
+with an empty memory and then with *ideal* parent findings (one per parent
+label, the label's note as the claim). Recall of the follow-up's labelled
+sections:
+
+| Task | Empty memory | Ideal parent memory | Findings served |
+|---|---|---|---|
+| F01 | 0.29 | 0.57 | 3 |
+| F05 | 0.25 | 0.50 | 3 |
+| F07 | 0.25 | 0.38 | 1 |
+| F10 | 0.25 | 0.38 | 3 |
+| F12 | 0.14 | 0.43 | 3 |
+| **Mean** | **0.24** | **0.45** | |
+
+The package grows by ~300 tokens. Findings are matched by keywords only, so
+a finding worded differently from the new task can be missed (F07 got one of
+six). At most 3 findings are served per request. Real agents will record
+fewer and vaguer findings, so this is a ceiling for a single request.

@@ -143,6 +143,27 @@ stored files: paired per-task comparisons with bootstrap intervals
 counterfactual replays (`what-if`). Labels, rubrics and gate criteria are
 committed before the runs that use them.
 
+### D14. Agents can write findings, but only anchored ones
+
+`record_finding` (MCP with `--memory-write`, or `ContextService.record_finding`)
+stores a claim with a file, a line range and a short verbatim quote. The quote
+must appear in those lines (whitespace normalised), so a finding cannot cite
+lines that don't say it. Findings live in `memory.db` in the state directory
+(never in the project), survive re-ingest, carry the cited file's hash so they
+are flagged stale when it changes, and stay `unverified` until a person
+reviews them (`ctxo findings` lists them). `request_context` serves up to 3
+matching findings before search results; a finding must share at least two
+search terms with the request. Matching is keyword-only for now.
+
+### D15. Pruning is tested in our own loop
+
+Claude Code manages its own context, so pruning experiments run in a small
+loop of our own (`evaluation/own_loop.py`, Anthropic SDK as an optional
+dependency group, OpenRouter's Anthropic-compatible endpoint). Pruning edits
+the message list client-side in batches, mirroring the API's
+`clear_tool_uses`: old tool results become one-line stubs naming the call.
+Each experiment compares arms of this loop only.
+
 ## Data model (SQLite)
 
 ```
