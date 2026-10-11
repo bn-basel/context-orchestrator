@@ -38,8 +38,19 @@ forward"):
    **Blocked (2026-10-11):** no API credentials on the machine; the owner
    must create an API key and set `ANTHROPIC_API_KEY` themselves.
    (A "file map" for targeted reads was estimated at most -8% and not run.)
+   **Route found (2026-10-11):** the owner offered an OpenRouter key capped at
+   $5. Subscription logins can't drive our own loop (Anthropic's terms limit
+   them to Claude Code). With our own loop, pruning is plain client-side
+   message editing, so no beta feature is needed. Compare pruned vs unpruned
+   in the same loop, not against the Claude Code runs. The key goes in the
+   `OPENROUTER_API_KEY` environment variable, set by the owner; never in chat
+   or files.
 2. **Multi-task benchmark** with a memory write path: agents record verified
-   findings so later tasks on the same project start ahead.
+   findings so later tasks on the same project start ahead. **Offline check
+   (2026-10-11):** the 20 Hallpass tasks barely share needed context (at most
+   1 overlapping labelled section of 5–6 per pair), so they can't show a
+   memory effect. This needs purpose-written follow-up tasks in the same area
+   as an earlier one.
 3. **Robustness:** a second model, a real open-source corpus, an independent
    label and rubric check.
 
