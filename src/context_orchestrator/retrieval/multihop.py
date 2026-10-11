@@ -11,16 +11,23 @@ task. This module makes one such hop without any model:
    whose names are specific (contain an underscore).
 3. Search again with those names as phrases (``occurrence_windows`` is indexed
    as the tokens "occurrence windows").
-4. Fuse the first and second rankings per kind with reciprocal rank fusion.
+4. Fuse the first and second rankings with reciprocal rank fusion, for code,
+   test and schema kinds only: the names are code identifiers, so documents,
+   decisions and known issues keep the ranking the task itself produced.
+
+Measured limitation: the follow-up is only as good as the seeds. On Hallpass
+only about half of the top-4 first-search results are relevant, so half the
+names come from the wrong chunks ("query drift") and recall does not improve.
 """
 
 from __future__ import annotations
 
-from context_orchestrator.models import Chunk
+from context_orchestrator.models import Chunk, InfoKind
 from context_orchestrator.retrieval.lexical import ScoredChunk
 from context_orchestrator.retrieval.references import ReferenceIndex, mentioned_names
 
 SEED_COUNT = 4
+FOLLOW_UP_KINDS = frozenset({InfoKind.CODE, InfoKind.TEST, InfoKind.SCHEMA})
 CANDIDATES = 50  # depth of each ranking that gets fused
 MAX_NAMES = 12
 MAX_DEFINITIONS_PER_NAME = 3

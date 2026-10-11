@@ -224,7 +224,9 @@ class ContextOrchestrator:
             return hits_by_kind
         phrases = [multihop.as_phrase(n) for n in names]
         return [
-            multihop.fuse(
+            hits
+            if kind is not None and kind not in multihop.FOLLOW_UP_KINDS
+            else multihop.fuse(
                 hits, LexicalRetriever.search(self.retriever, phrases, kind, depth), names
             )
             for hits, kind in zip(hits_by_kind, kinds, strict=True)
