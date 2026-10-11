@@ -14,14 +14,26 @@ from dataclasses import dataclass
 from context_orchestrator.memory.store import MemoryStore
 from context_orchestrator.models import Chunk, InfoKind, Status
 
-# Words that carry no retrieval signal in task descriptions.
-STOPWORDS = frozenset(
-    """a an and are as at be been but by can could do does for from has have how i if in into
-    is it its me my of on or our please should so that the their them then there these this
-    those to us was we were what when where which while who why will with would you your
-    add adding change fix fixing implement implementing make making update updating write
-    new use using need needs want task code
-    not no one all any some also just only than very more most other such same each both""".split()
+# NLTK's English stopword list (function words only, tokenised the way extract_terms
+# splits text, so "don't" contributes "don"). Lists with content words such as "due",
+# "bill" or "show" (e.g. scikit-learn's) are avoided: those carry meaning in a codebase.
+NLTK_ENGLISH_STOPWORDS = frozenset(
+    """i me my myself we our ours ourselves you your yours yourself yourselves he him his
+    himself she her hers herself it its itself they them their theirs themselves what which
+    who whom this that these those am is are was were be been being have has had having do
+    does did doing a an the and but if or because as until while of at by for with about
+    against between into through during before after above below to from up down in out on
+    off over under again further then once here there when where why how all any both each
+    few more most other some such no nor not only own same so than too very can will just
+    don should now ll re ve ain aren couldn didn doesn hadn hasn haven isn ma mightn mustn
+    needn shan shouldn wasn weren won wouldn""".split()
+)
+
+# Words that carry no retrieval signal in task descriptions: function words plus the
+# generic verbs and nouns of change requests.
+STOPWORDS = NLTK_ENGLISH_STOPWORDS | frozenset(
+    """could would please add adding change fix fixing implement implementing make making
+    update updating write new use using need needs want task code one also us""".split()
 )
 
 _TERM = re.compile(r"[A-Za-z0-9]+")
