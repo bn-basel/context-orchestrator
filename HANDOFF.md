@@ -3,7 +3,7 @@
 Read this first when resuming work in a new session. Keep it current: update
 it at the end of every milestone, and before a session's context runs out.
 
-**Last updated:** 2026-10-11, phase 3a (compact packages) measured; next step open.
+**Last updated:** 2026-10-11, phase 3b (trace analysis) done; next: small check of a 'trust the excerpts' instruction.
 
 ## Resume prompt
 
@@ -41,10 +41,14 @@ recall 0.61 -> 0.74 at the same size, but a 10-run Haiku check showed no agent
 benefit (fewer service calls, more file reads, same cost). Full packages stay
 the default.
 
+Phase 3b (benchmarks/README.md): in B2, 35% of the agent's read volume
+re-opens ranges the service already returned (mostly whole files), and
+package text is 39% of carried context. `ctxo analyze-traces` reproduces it.
+
 Candidate next steps:
-- **Free analysis of the 300 phase 2 runs**: which files did B2 agents still
-  read after calling the service, and were they the pieces retrieval missed?
-  That shows what actually drives cost, with no model calls.
+- **~10-run check of a 'trust the excerpts' variant**: B2 plus "excerpts are
+  verbatim with exact line ranges; open files only for parts not shown"
+  (optionally line-numbered excerpts). Compare with B2 on the same 5 tasks.
 - **Better follow-up answers** from the service (an agent asking about a
   named function gets it plus its tests and callers), then a ~10-run check.
 - Repository stays **private** until research, implementation and tests are
