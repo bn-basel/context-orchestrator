@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "run_id": "20261011T020215Z-hallpass",
+  "started_at": "2026-10-11T02:02:15+00:00",
+  "finished_at": "2026-10-11T02:02:15+00:00",
+  "tool_version": "0.1.0",
+  "git": {
+    "commit": "2ab4c2db8dbb058af9470a84fb1fc008f8d6efe2",
+    "dirty": false
+  },
+  "environment": {
+    "python": "3.12.13",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "sqlite": "3.53.1"
+  },
+  "suite": {
+    "name": "hallpass",
+    "path": "benchmarks/tasks/hallpass.json",
+    "sha256": "9c6bc7e5af815474ee007dede934579502724a04a3604c05b516982cc24235d7",
+    "n_tasks": 20
+  },
+  "gate_file": null,
+  "config": {
+    "max_tokens": 4000,
+    "per_kind_limit": 3,
+    "min_relative_score": 0.0,
+    "max_references": 6
+  },
+  "corpus": {
+    "files": 163,
+    "chunks": 1035,
+    "estimated_tokens": 139612
+  },
+  "summary": {
+    "n_tasks": 20,
+    "n_tasks_with_recall": 20,
+    "n_tasks_with_precision": 20,
+    "mean_recall": 0.565,
+    "min_recall": 0.16666666666666666,
+    "mean_precision": 0.2196,
+    "recall_by_category": {
+      "assumption_trap": 0.9,
+      "bugfix": 0.6133,
+      "cross_area": 0.5667,
+      "feature_constrained_by_decision": 0.4583,
+      "missing_information": 0.5,
+      "schema_or_migration": 0.75,
+      "superseded_trap": 0.2
+    },
+    "forbidden_returned": 0,
+    "unresolved_misses": 2,
+    "status_mismatches": 0,
+    "mean_package_tokens": 3703.0,
+    "full_corpus_tokens": 139612,
+    "mean_package_to_corpus_ratio": 0.0265,
+    "token_note": "package and corpus tokens are estimates (ceil(chars / 4) heuristic, not a model tokenizer)"
+  },
+  "gate": null
+}

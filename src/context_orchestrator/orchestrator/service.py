@@ -1,9 +1,11 @@
 """Turn a ContextRequest into a ContextPackage.
 
 Pipeline: extract search terms -> retrieve candidates per requested kind ->
-set aside superseded items -> select within the token budget (round-robin
-across kinds so one kind cannot crowd out the others) -> check sources for
-staleness -> report what could not be found -> emit one telemetry event.
+set aside superseded (and, optionally, weak) items -> select within the token
+budget, round-robin across kinds so one kind cannot crowd out the others, and
+(optionally) right after each selected item the code it names -> check
+sources for staleness -> report what could not be found -> emit one
+telemetry event.
 
 The orchestrator never invents content: anything it cannot find is reported
 under ``unresolved`` instead of being filled in.
@@ -122,30 +124,46 @@ class ContextOrchestrator:
         )
         selected: set[str] = set()
         fingerprints: dict[str, str | None] = {}
+        allowed_kinds = set(request.kinds)
+        references_added = 0
+
+        def try_add(item: ContextItem, chunk_id: str) -> bool:
+            nonlocal used_tokens
+            if used_tokens + item.estimated_tokens > request.max_tokens:
+                reason = f"token budget: needs ~{item.estimated_tokens}, "
+                reason += f"{request.max_tokens - used_tokens} left"
+                omitted.append(
+                    OmittedItem(item.source, reason + (f" ({item.via})" if item.via else ""))
+                )
+                return False
+            selected.add(chunk_id)
+            used_tokens += item.estimated_tokens
+            items.append(item)
+            return True
+
         for rank in range(max((len(r) for r in ranked_by_kind), default=0)):
             round_hits = [r[rank] for r in ranked_by_kind if rank < len(r)]
             for hit in sorted(round_hits, key=lambda h: -h.score):
                 if hit.chunk.chunk_id in selected:
                     continue
-                item = self._to_item(hit, fingerprints)
-                cost = item.estimated_tokens
-                if used_tokens + cost > request.max_tokens:
-                    omitted.append(
-                        OmittedItem(
-                            hit.chunk.source,
-                            f"token budget: needs ~{cost}, {request.max_tokens - used_tokens} left",
-                        )
-                    )
+                if not try_add(self._to_item(hit, fingerprints), hit.chunk.chunk_id):
                     continue
-                selected.add(hit.chunk.chunk_id)
-                used_tokens += cost
-                items.append(item)
-
-        # 3. Follow references from selected items to the code they name.
-        if request.max_references > 0:
-            used_tokens = self._add_references(
-                request, items, selected, used_tokens, omitted, fingerprints
-            )
+                # 3. Follow references from this item right away, so the code a bug report
+                #    or ADR names outranks lower-ranked search hits for the budget.
+                if references_added >= request.max_references:
+                    continue
+                for ref in self.references.references_in(hit.chunk):
+                    if references_added >= request.max_references:
+                        break
+                    chunk = ref.chunk
+                    if chunk.chunk_id in selected or (
+                        allowed_kinds and chunk.kind not in allowed_kinds
+                    ):
+                        continue
+                    via = f"references: `{ref.name}` named in {hit.chunk.source.label()}"
+                    ref_item = self._to_item(ScoredChunk(chunk, 0.0, ()), fingerprints, via=via)
+                    if try_add(ref_item, chunk.chunk_id):
+                        references_added += 1
 
         # 4. Annotate.
         stale = [i for i in items if i.stale]
@@ -180,40 +198,6 @@ class ContextOrchestrator:
         return package
 
     # -- helpers ------------------------------------------------------------
-
-    def _add_references(
-        self,
-        request: ContextRequest,
-        items: list[ContextItem],
-        selected: set[str],
-        used_tokens: int,
-        omitted: list[OmittedItem],
-        fingerprints: dict[str, str | None],
-    ) -> int:
-        allowed = set(request.kinds)
-        added = 0
-        for source_item in list(items):  # only items found by search, not added references
-            if added >= request.max_references:
-                break
-            source_chunk = self.store.chunk_by_source(source_item.source)
-            if source_chunk is None:
-                continue
-            for ref in self.references.references_in(source_chunk):
-                chunk = ref.chunk
-                if added >= request.max_references:
-                    break
-                if chunk.chunk_id in selected or (allowed and chunk.kind not in allowed):
-                    continue
-                via = f"references: `{ref.name}` named in {source_item.source.label()}"
-                item = self._to_item(ScoredChunk(chunk, 0.0, ()), fingerprints, via=via)
-                if used_tokens + item.estimated_tokens > request.max_tokens:
-                    omitted.append(OmittedItem(chunk.source, f"token budget ({via})"))
-                    continue
-                selected.add(chunk.chunk_id)
-                used_tokens += item.estimated_tokens
-                items.append(item)
-                added += 1
-        return used_tokens
 
     def _to_item(
         self, hit: ScoredChunk, fingerprints: dict[str, str | None], via: str | None = None
