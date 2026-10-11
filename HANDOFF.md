@@ -4,7 +4,7 @@ Development notes for resuming work in a new session. Keep them current:
 update at the end of every milestone and before a session's context runs out.
 
 **Last updated:** 2026-10-11. Phases 0–4 done and written up (README,
-docs/findings.md, chart); repository private until the owner decides.
+docs/findings.md, chart); repository public.
 
 ## Resume prompt
 
@@ -23,7 +23,7 @@ Paste into a new session opened in the repository folder:
 | 2 Agent comparison | done: 300 Haiku runs; service used first (B2) 0.79× cost vs exploring alone, no detectable quality loss; full context 2× cost |
 | 3a–3d | done: compact excerpts (no agent benefit), trace analysis (35% re-reads), what-if replay (pruning −33% to −53%, untested), reader sub-agent (worse) |
 | 4 Pruning + memory | 4a done: pruning gave no saving on Haiku 5.5 (cost ×1.17, 10 runs, $0.07); 4b memory: findings accurate and served, but no saving (cost ×0.98 pooled over 20 pairs; agents re-open cited files) |
-| Publication | README (tested / found / think) and docs/findings.md cover phases 1–4; chart docs/img/results-{light,dark}.svg from benchmarks/charts/results_chart.py (phase 2 + phase 4 groups); repository private until the owner decides |
+| Publication | **public since 2026-10-11** at github.com/bn-basel/context-orchestrator (fresh repository with the cleaned history); the pre-rewrite repository is kept private as bn-basel/context-orchestrator-private-archive (still holds the old commits with the personal email: never make it public) |
 
 The full story with numbers: [docs/findings.md](docs/findings.md); every run
 with caveats: [benchmarks/README.md](benchmarks/README.md).
@@ -52,8 +52,8 @@ Candidates, if the owner wants more:
    several follow-ups per parent so reuse can pay for recording.
 2. **Robustness:** a real open-source corpus, a larger model, longer tasks,
    an independent label and rubric check.
-3. **Publication:** the owner plans to post on GitHub and social media; ask
-   before making the repository public.
+3. **Publication:** done (public). The owner plans social media posts; a PNG
+   of the chart may be wanted.
 
 ## Rules for experiments
 
