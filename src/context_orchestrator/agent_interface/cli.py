@@ -13,12 +13,17 @@ import logging
 import sys
 from pathlib import Path
 
-from context_orchestrator.agent_interface.api import ContextService
+from context_orchestrator.agent_interface.api import RETRIEVAL_MODES, ContextService
 from context_orchestrator.models import (
     DEFAULT_MAX_REFERENCES,
     DEFAULT_MIN_RELATIVE_SCORE,
     ContextRequest,
     InfoKind,
+)
+from context_orchestrator.retrieval.semantic import (
+    DEFAULT_MODEL,
+    DEFAULT_OLLAMA_URL,
+    OllamaEmbedder,
 )
 
 
@@ -34,6 +39,17 @@ def _build_parser() -> argparse.ArgumentParser:
             type=Path,
             help="where memory.db and telemetry live (default: <project>/.ctxo)",
         )
+        retrieval_options(p)
+
+    def retrieval_options(p: argparse.ArgumentParser) -> None:
+        p.add_argument(
+            "--retrieval",
+            choices=RETRIEVAL_MODES,
+            default="bm25",
+            help="bm25 (default), hybrid or semantic; the last two need Ollama",
+        )
+        p.add_argument("--embed-model", default=DEFAULT_MODEL)
+        p.add_argument("--ollama-url", default=DEFAULT_OLLAMA_URL)
 
     ingest = sub.add_parser("ingest", help="load or refresh the project knowledge base")
     common(ingest)
@@ -75,7 +91,14 @@ def _build_parser() -> argparse.ArgumentParser:
     ev.add_argument("--per-kind-limit", type=int, default=3)
     ev.add_argument("--min-relative-score", type=float, default=DEFAULT_MIN_RELATIVE_SCORE)
     ev.add_argument("--max-references", type=int, default=DEFAULT_MAX_REFERENCES)
+    retrieval_options(ev)
     return parser
+
+
+def _embedder(args: argparse.Namespace) -> OllamaEmbedder | None:
+    if args.retrieval == "bm25":
+        return None
+    return OllamaEmbedder(model=args.embed_model, base_url=args.ollama_url)
 
 
 def _eval_retrieval(args: argparse.Namespace) -> int:
@@ -91,8 +114,14 @@ def _eval_retrieval(args: argparse.Namespace) -> int:
         suite,
         args.out,
         RetrievalConfig(
-            args.max_tokens, args.per_kind_limit, args.min_relative_score, args.max_references
+            args.max_tokens,
+            args.per_kind_limit,
+            args.min_relative_score,
+            args.max_references,
+            args.retrieval,
+            args.embed_model if args.retrieval != "bm25" else None,
         ),
+        embedder=_embedder(args),
         gate=gate,
         gate_path=args.gate,
     )
@@ -122,7 +151,9 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         if args.command == "ingest":
-            with ContextService(args.project, args.state_dir) as svc:
+            with ContextService(
+                args.project, args.state_dir, retrieval=args.retrieval, embedder=_embedder(args)
+            ) as svc:
                 report = svc.ingest()
                 print(
                     json.dumps(
@@ -134,6 +165,7 @@ def main(argv: list[str] | None = None) -> int:
                             "removed": report.removed,
                             "skipped": report.skipped,
                             "chunks_written": report.chunks_written,
+                            "chunks_embedded": report.chunks_embedded,
                             "total_chunks": svc.store.count_chunks(),
                         },
                         indent=2,
@@ -159,7 +191,11 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         request = ContextRequest.from_dict(data)
         with ContextService(
-            args.project, args.state_dir, record_task_text=args.record_task_text
+            args.project,
+            args.state_dir,
+            record_task_text=args.record_task_text,
+            retrieval=args.retrieval,
+            embedder=_embedder(args),
         ) as svc:
             package = svc.request(request)
         if args.format == "markdown":

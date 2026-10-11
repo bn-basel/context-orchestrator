@@ -49,6 +49,13 @@ CREATE TABLE IF NOT EXISTS chunks (
     metadata_json TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS chunks_path ON chunks(path);
+CREATE TABLE IF NOT EXISTS chunk_vectors (
+    chunk_id TEXT NOT NULL REFERENCES chunks(chunk_id) ON DELETE CASCADE,
+    model    TEXT NOT NULL,
+    dim      INTEGER NOT NULL,
+    vector   BLOB NOT NULL,  -- float32 array
+    PRIMARY KEY (chunk_id, model)
+);
 CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
     chunk_id UNINDEXED, heading, text, path,
     tokenize = 'porter unicode61'
@@ -64,6 +71,7 @@ class IngestReport:
     removed: list[str] = field(default_factory=list)
     skipped: list[str] = field(default_factory=list)
     chunks_written: int = 0
+    chunks_embedded: int = 0
 
 
 def _now() -> str:

@@ -143,6 +143,7 @@ class ContextItem:
     stale: bool | None  # True if the file changed since ingestion; None if not checked
     estimated_tokens: int  # of this item's rendered block (heading, flags and text)
     via: str | None = None  # why it was added when not by search, e.g. "referenced by …"
+    similarity: float | None = None  # cosine similarity to the task, when vectors were used
 
 
 @dataclass(frozen=True, slots=True)

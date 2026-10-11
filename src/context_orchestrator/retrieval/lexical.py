@@ -54,8 +54,9 @@ def extract_terms(text: str) -> list[str]:
 @dataclass(frozen=True, slots=True)
 class ScoredChunk:
     chunk: Chunk
-    score: float  # negated BM25: higher is more relevant
+    score: float  # negated BM25 (or fused rank score in hybrid mode): higher is better
     matched_terms: tuple[str, ...]
+    similarity: float | None = None  # cosine similarity to the query, if vectors were used
 
 
 class LexicalRetriever:
@@ -71,6 +72,7 @@ class LexicalRetriever:
         kind: InfoKind | None = None,
         limit: int = 5,
         include_superseded: bool = True,
+        query_text: str | None = None,  # unused here; semantic retrievers embed it
     ) -> list[ScoredChunk]:
         if not terms:
             return []

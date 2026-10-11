@@ -35,7 +35,7 @@ from pathlib import Path
 from typing import Any
 
 from context_orchestrator import __version__
-from context_orchestrator.agent_interface.api import ContextService
+from context_orchestrator.agent_interface.api import ContextService, Embedder
 from context_orchestrator.models import (
     DEFAULT_MAX_REFERENCES,
     DEFAULT_MIN_RELATIVE_SCORE,
@@ -98,6 +98,8 @@ class RetrievalConfig:
     per_kind_limit: int = 3
     min_relative_score: float = DEFAULT_MIN_RELATIVE_SCORE
     max_references: int = DEFAULT_MAX_REFERENCES
+    retrieval: str = "bm25"
+    embed_model: str | None = None  # set when retrieval is hybrid or semantic
 
 
 # -- loading and validation ------------------------------------------------------
@@ -265,6 +267,8 @@ def evaluate_task(service: ContextService, task: EvalTask, config: RetrievalConf
                 "status": item.status.value,
                 "score": item.score,
                 "matched_terms": list(item.matched_terms),
+                "similarity": item.similarity,
+                "via": item.via,
                 "estimated_tokens": item.estimated_tokens,
                 "relevant": rel,
             }
@@ -365,9 +369,14 @@ def run_suite(
     config: RetrievalConfig | None = None,
     gate: dict | None = None,
     gate_path: Path | None = None,
+    embedder: Embedder | None = None,
 ) -> RunResult:
     """Ingest the suite's project into a fresh store, score every task, write raw files."""
     config = config or RetrievalConfig()
+    if config.retrieval != "bm25" and embedder is None:
+        from context_orchestrator.retrieval.semantic import OllamaEmbedder
+
+        embedder = OllamaEmbedder(model=config.embed_model or "nomic-embed-text")
     git_state = _git_state(suite.path.resolve().parent)  # before this run writes any files
     started_at = datetime.now(UTC)
     run_id = f"{started_at:%Y%m%dT%H%M%SZ}-{suite.name}"
@@ -376,7 +385,9 @@ def run_suite(
 
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as state:
         telemetry = JsonlTelemetry(run_dir / "telemetry.jsonl", record_task_text=True)
-        with ContextService(suite.project, state, telemetry=telemetry) as service:
+        with ContextService(
+            suite.project, state, telemetry=telemetry, retrieval=config.retrieval, embedder=embedder
+        ) as service:
             ingest = service.ingest()
             corpus_tokens = _corpus_tokens(service)
             chunk_count = service.store.count_chunks()
@@ -415,6 +426,9 @@ def run_suite(
             else None
         ),
         "config": asdict(config),
+        "embedding_model": (
+            getattr(embedder, "model_id", lambda: embedder.model)() if embedder else None
+        ),
         "corpus": {
             "files": len(ingest.added),
             "chunks": chunk_count,
@@ -448,7 +462,9 @@ def render_summary(run_meta: dict, results: list[dict]) -> str:
         f"- Config: max_tokens={run_meta['config']['max_tokens']}, "
         f"per_kind_limit={run_meta['config']['per_kind_limit']}, "
         f"min_relative_score={run_meta['config'].get('min_relative_score', 0.0)}, "
-        f"max_references={run_meta['config'].get('max_references', 0)}",
+        f"max_references={run_meta['config'].get('max_references', 0)}, "
+        f"retrieval={run_meta['config'].get('retrieval', 'bm25')}"
+        + (f" ({run_meta['embedding_model']})" if run_meta.get("embedding_model") else ""),
         f"- Corpus: {run_meta['corpus']['files']} files, {run_meta['corpus']['chunks']} chunks, "
         f"~{run_meta['corpus']['estimated_tokens']} tokens (estimated)",
         "",

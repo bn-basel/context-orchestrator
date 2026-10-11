@@ -75,8 +75,12 @@ class ContextOrchestrator:
 
         # 1. Retrieve per kind. Over-fetch so superseded items do not use up slots.
         kinds = request.kinds or [None]
+        query_text = " ".join([request.task, *request.constraints])
         hits_by_kind = [
-            self.retriever.search(terms, kind, limit=request.per_kind_limit * 2) for kind in kinds
+            self.retriever.search(
+                terms, kind, limit=request.per_kind_limit * 2, query_text=query_text
+            )
+            for kind in kinds
         ]
         candidates_seen = sum(len(h) for h in hits_by_kind)
         # BM25 scores from one query are comparable across kinds (IDF is index-wide), so a
@@ -219,6 +223,7 @@ class ContextOrchestrator:
             stale=self._is_stale(chunk.source, fingerprints),
             estimated_tokens=0,
             via=via,
+            similarity=hit.similarity,
         )
         return replace(item, estimated_tokens=estimate_tokens(render_item(item)))
 
