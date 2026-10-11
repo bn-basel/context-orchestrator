@@ -6,7 +6,8 @@ negative result is written up rather than worked around.
 
 ```
 Phase 0  foundation ─▶ Phase 1  measure retrieval ─▶ Phase 1b  larger corpus ─▶ Phase 1c  improve retrieval
-   ─▶ Gate 1 (held-out tasks) ─▶ Phase 2  agent comparison ─▶ Gate 2 ─▶ Phase 3  agent access ─▶ Phase 4  scale up
+   ─▶ Gate 1 (single request: not passed) ─▶ Phase 2  agent comparison ─▶ Gate 2 (answered for one setting)
+   ─▶ Phase 3  agent access ─▶ Phase 4  scale up
    ─▶ Phase 5  smarter search (only if evidence demands it)
 ```
 
@@ -73,13 +74,16 @@ configuration choice. The criteria in
 [benchmarks/gate1.json](benchmarks/gate1.json) stay as committed: changing them
 after seeing results would be moving the goalposts.
 
-## Phase 2: agent comparison (pilot done)
+## Phase 2: agent comparison (done)
 
 - [x] MCP server (`ctxo mcp`) and runner (`ctxo eval-agent`) for strategies
       A–D via `claude -p`, with isolation flags, stream parsing, usage,
       regex rubric grading and sanitised raw output.
 - [x] Pilot: 4 tasks × 4 strategies × 1 run on Haiku (results in
       benchmarks/README.md). Strategy B used the tool in only 2 of 4 runs.
+- [x] Full run: 20 tasks × 5 strategies (A, B, B2, C, D) × 3 on Haiku,
+      paired bootstrap analysis (`ctxo analyze-agent`). Results in
+      benchmarks/README.md.
 
 - [ ] Benchmark runner for strategies A (full context) and B (on-demand
       retrieval), then C (no context) and D (oracle), via `claude -p` with the
@@ -90,14 +94,29 @@ after seeing results would be moving the goalposts.
       CLI's `costUSD`.
 - [ ] Analysis from raw files only: per-task medians and spreads.
 
-## Gate 2
+## Gate 2: answered for one setting
 
-Does on-demand retrieval use fewer tokens at the same task success? Either
-answer is written up and published.
+Does on-demand retrieval use fewer tokens at the same task success? On the
+Hallpass corpus with Haiku 4.5: **yes against unaided exploration when the
+agent is told to use the service** (0.78× input tokens, 0.79× cost, no
+detectable quality difference); **no when the tool is merely offered**
+(savings within noise). Against full context it uses ~0.15× the tokens and
+~0.40× the cost, at a small quality cost (−0.05). Written up in
+[benchmarks/README.md](benchmarks/README.md). Generality (other corpora,
+models, graders) is untested.
+
+## Next: candidates, in order of evidence
+
+- [ ] **Better retrieval recall** (the oracle shows ~60% token savings are
+      possible; the service reaches ~20%): e.g. task decomposition by the
+      agent, smarter follow-ups, a reranker.
+- [ ] **Robustness of the phase 2 result**: a second model (Sonnet), a second
+      corpus, an independent rubric/label check.
+- [ ] **Held-out task set** for the retrieval configuration.
 
 ## Phase 3: real agent access
 
-- [ ] MCP server exposing `request_context` with the same schema.
+- [x] MCP server exposing `request_context` (`ctxo mcp`; built for phase 2).
 - [ ] Memory write path: agents propose findings, stored with provenance and
       status, applied only after explicit review (no silent writes).
 

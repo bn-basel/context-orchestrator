@@ -9,13 +9,16 @@ tests, known bugs) and answers **structured context requests** with a compact,
 needs; the service says where every piece came from, how far it can be
 trusted, and what it could not find.
 
-> **Status: early experiment.** The retrieval pipeline works end to end and is
-> tested. Retrieval quality has been measured once, on a small synthetic
-> corpus (recall 0.83, precision 0.40; details and caveats in
-> [benchmarks/README.md](benchmarks/README.md)). Whether this approach saves
-> tokens or improves task quality compared with handing an agent the full
-> context is **not yet measured**; see
-> [docs/benchmark-methodology.md](docs/benchmark-methodology.md).
+> **Status: experiment with first results.** On a synthetic ~140k-token
+> project, 300 Claude Code (Haiku 4.5) runs compared five ways of giving an
+> agent context. When told to use it, the context service cut cost by about
+> a fifth against the agent exploring files on its own (0.79×, 95% interval
+> 0.69–0.89), with no detectable change in plan quality. Putting the whole
+> project in the prompt cost twice as much for at most a small quality gain.
+> One corpus, one small model and regex-graded plans: see
+> [benchmarks/README.md](benchmarks/README.md) for the numbers and their
+> limits, and [docs/benchmark-methodology.md](docs/benchmark-methodology.md)
+> for the method.
 
 ## The problem
 
@@ -192,13 +195,13 @@ constraint, a recorded assumption, known bugs, code and tests. It contains no
   belongs to.
 - **Token counts in the service are estimates** (`chars / 4`). Real counts
   come from the model provider's usage data during benchmark runs.
-- **No MCP server yet.** Agents use the Python API or the CLI; MCP is the
-  planned integration.
+- **Retrieval recall is limited** (about 0.6 on realistic tasks with hybrid
+  search): needed pieces are often linked to a task by reasoning, not words.
 - **No memory write path yet.** Agents cannot record findings; the knowledge
   base changes only by editing files and re-ingesting.
-- **No agent comparison yet.** Only retrieval has been measured (phase 1),
-  on a corpus too small for token savings to matter. The full-context vs.
-  retrieval comparison with a model (phase 2) has not been run.
+- **Evidence is narrow:** one synthetic corpus, one small model, plans graded
+  by regex rubrics. The results are a measured starting point, not a general
+  claim.
 - Status labels are only as good as the front matter people write.
 
 See [ROADMAP.md](ROADMAP.md) for what is implemented and what is planned.

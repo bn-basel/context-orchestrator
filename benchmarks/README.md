@@ -273,3 +273,64 @@ within noise. What it did show:
 4. **The oracle isn't a ceiling for plan quality.** D received exactly the
    labelled ranges but scored below B. Knowing the facts is not the same as
    writing them into the plan, and the regex rubric misses some paraphrases.
+
+## Phase 2 result: agent comparison (run `20261011T032628Z-hallpass-agent`)
+
+Claude Code 2.1.292, Haiku 4.5, commit `236e659` (clean). 20 Hallpass tasks ×
+5 strategies × 3 repetitions = 300 runs, 4 in parallel, order shuffled (seed
+20261011); 67 minutes; **0 failed runs**. About **$31 API-equivalent** in
+total (the CLI's list-price estimate, not a subscription charge). Raw event
+streams are stored gzip-compressed (`raw/*.jsonl.gz`); the analysis below
+comes from `runs.jsonl` alone (`ctxo analyze-agent <run folder>`).
+
+Strategies: **A** whole corpus (~140k tokens) appended to the system prompt;
+**B** context service offered as an MCP tool (hybrid retrieval, 2 hops);
+**B2** the same, plus "start by calling request_context"; **C** no extra
+context, file tools only; **D** oracle: only the hand-labelled ranges. All
+have the same prompt and the same read-only file tools.
+
+| Strategy | Mean score | Fully correct plans | Traps hit | Median input tokens | Median duration | API-equiv. cost (60 runs) |
+|---|---|---|---|---|---|---|
+| A whole corpus | 0.84 | 27/60 | 1 | 1,508k | 48 s | $11.63 |
+| B service offered | 0.80 | 22/60 | 1 | 251k | 55 s | $5.49 |
+| B2 service, use it first | 0.79 | 20/60 | 0 | 193k | 47 s | $4.62 |
+| C file tools only | 0.81 | 19/60 | 2 | 270k | 56 s | $5.77 |
+| D oracle | 0.86 | 28/60 | 0 | 125k | 40 s | $3.50 |
+
+**Paired comparisons** (per task, 95% bootstrap intervals over the 20 tasks;
+full table in the run's `analysis.md`):
+
+| Comparison | Score difference | Input tokens | Cost |
+|---|---|---|---|
+| B2 vs C | −0.017 [−0.060, +0.026] | **0.78× [0.61, 0.97]** | **0.79× [0.69, 0.89]** |
+| B vs C | −0.008 [−0.081, +0.060] | 0.90× [0.70, 1.12] | 0.93× [0.81, 1.05] |
+| A vs C | +0.035 [−0.015, +0.080] | 5.12× [4.00, 6.35] | 1.97× [1.59, 2.32] |
+| D vs C | +0.048 [−0.012, +0.111] | 0.39× [0.28, 0.52] | 0.57× [0.47, 0.67] |
+| B2 vs A | −0.052 [−0.094, −0.009] | 0.15× [0.12, 0.20] | 0.40× [0.33, 0.50] |
+
+Service use: B called the tool in 42 of 60 runs (1.08 calls on average), B2 in
+59 of 60 (1.87). B2 needed fewer file-tool calls than C (median 12 vs 17).
+
+### What this shows (and what it doesn't)
+
+1. **Told to use it, the context service saves about a fifth of the cost
+   against unaided exploration** (B2 vs C: 0.79× cost, interval excludes
+   1.0), **with no detectable loss in plan quality.** "No detectable loss" is
+   not "equal": the score interval spans −0.06 to +0.03.
+2. **Merely offering the tool is not enough.** Offered (B), the agent skipped
+   it in 18 of 60 runs, and the savings fall within noise.
+3. **Full context is the most expensive way to get a small quality edge.** A
+   used 5× the input tokens of C and twice the cost (cache reads soften
+   but don't remove the re-sending of 140k tokens every turn). Its quality
+   lead over C is borderline; over B2 it is small but detectable (+0.05).
+4. **Perfect retrieval would save much more.** The oracle uses 0.39× C's
+   tokens. The service gets part of the way, consistent with its ~0.6 recall
+   in phase 1. Better retrieval is where the remaining savings are.
+
+Threats to validity: one synthetic corpus written by agents of the same model
+family; one small model (Haiku 4.5); plans graded by regex rubrics (fast and
+transparent, but blind to some paraphrases and lenient on some checks);
+20 tasks; 8 comparisons × 4 measures without multiple-comparison correction,
+so a single borderline interval (e.g. B2 vs A on score) may be chance. The
+model may also have prior knowledge of common patterns, though not of this
+fictional project.

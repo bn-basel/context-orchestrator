@@ -21,6 +21,7 @@ number can be recomputed from the files.
 
 from __future__ import annotations
 
+import gzip
 import hashlib
 import json
 import random
@@ -344,9 +345,10 @@ def run_agent_suite(
             stderr, exit_code = "timeout", None
         wall_ms = round((time.perf_counter() - t0) * 1000)
         name = f"{task.id}-{strategy}-{rep}"
-        (run_dir / "raw" / f"{name}.jsonl").write_text(
-            _sanitise(stdout, replacements), encoding="utf-8", newline="\n"
-        )
+        # Raw event streams are large plain JSON; gzip keeps the repository small (lossless).
+        raw_path = run_dir / "raw" / f"{name}.jsonl.gz"
+        with gzip.open(raw_path, "wt", encoding="utf-8", newline="\n") as fh:
+            fh.write(_sanitise(stdout, replacements))
         parsed = parse_stream(stdout.splitlines())
         usage = parse_claude_cli_result(parsed["result"] or {})
         failed = bool(exit_code != 0 or not parsed["result"] or parsed["result"].get("is_error"))

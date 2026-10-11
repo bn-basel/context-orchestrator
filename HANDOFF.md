@@ -3,7 +3,7 @@
 Read this first when resuming work in a new session. Keep it current: update
 it at the end of every milestone, and before a session's context runs out.
 
-**Last updated:** 2026-10-11, phase 2 pilot done; owner decision pending on the full run.
+**Last updated:** 2026-10-11, phase 2 full run done and written up.
 
 ## Resume prompt
 
@@ -20,7 +20,7 @@ Paste into a new chat opened in `C:\WIP\projects\Agent-Memory`:
 | 1 Measure retrieval | done on the tiny sample: gate 1 passed narrowly (recall 0.83) |
 | 1b Larger corpus | done: Hallpass (~140k tokens, 20 tasks). **Gate 1 not passed**: recall 0.56, precision 0.28, 2 missed "not found" cases |
 | 1c Improve retrieval | **done**. Best: hybrid + 2 hops, Hallpass recall 0.61 / precision 0.32; gate 1 (0.80) not reached by any single-request method. **Owner decision pending** |
-| 2 Agent comparison | **pilot done** (16 Haiku runs, ~$2.35 API-equivalent). Pipeline works; B used the service in only 2/4 runs. Full run not started: **owner decision pending** |
+| 2 Agent comparison | **done**: 300 Haiku runs, ~$31 API-equivalent. B2 (service, used first) 0.79x cost vs C at no detectable quality loss; offered-only B within noise; full context 2x cost. Gate 2 answered for this setting |
 | 3–5 | planned, see ROADMAP.md |
 
 Diagnosis (benchmarks/README.md): ranking is the main loss (recall 0.56 →
@@ -28,20 +28,20 @@ Diagnosis (benchmarks/README.md): ranking is the main loss (recall 0.56 →
 23% of the corpus; "not found" can't be detected by zero matches in a big
 corpus; the token budget ignores rendering overhead (bug).
 
-## Next step: owner decision pending (phase 2 full run)
+## Next step: owner's choice
 
-Pilot results and lessons: benchmarks/README.md, "Phase 2 pilot". Tooling:
-`ctxo eval-agent` (evaluation/agent_eval.py), `ctxo mcp` (agent_interface/mcp_server.py),
-rubrics in benchmarks/tasks/hallpass.rubrics.json.
+Phase 2 is written up (benchmarks/README.md, "Phase 2 result"; ROADMAP.md,
+"Gate 2" and "Next"). Candidate next steps, in order of evidence:
 
-Before the full run, decide with the owner:
-- **Strategy B's instruction.** Offered-only, the agent ignored the tool half
-  the time. Options: tell B to call request_context first (fairness caveat:
-  B gets an extra instruction), or run both B-offered and B-instructed.
-- **Model** (Haiku as in the pilot, or Sonnet ~3× the cost) and **size**
-  (20 tasks × strategies × 3 repetitions ≈ 240 runs; Haiku ≈ $30–40
-  API-equivalent from the pilot's per-run costs, on the subscription).
-- Strategy B needs Ollama running (hybrid retrieval); see below.
+- **Better retrieval recall**: the oracle saves ~60% of tokens, the service
+  ~20%. Ideas: let the agent decompose the task into several requests, better
+  follow-ups, a reranker. Measure on phase 1 first (cheap), then re-run B2.
+- **Robustness**: repeat phase 2 with Sonnet and/or a second corpus;
+  independent label/rubric check.
+- **Make it public**: repository is private; ask the owner before changing.
+
+Commands: `ctxo eval-agent ... --resume <run folder>` continues an interrupted
+run; `ctxo analyze-agent <run folder>` recomputes the paired analysis.
 
 Embedding setup if needed again: start the toolbox Ollama with
 `OLLAMA_MODELS=C:\WIP\tools\ollama\models C:\WIP\tools\ollama\ollama.exe serve`;

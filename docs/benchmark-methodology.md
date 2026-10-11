@@ -1,7 +1,8 @@
 # Benchmark methodology
 
-Status: the retrieval-only stage (phase 1) has run; the agent comparison
-(phase 2) is **design only, no runs yet**. This document fixes the method
+Status: both stages have run (phase 1 retrieval-only, phase 2 agent
+comparison); results in [benchmarks/README.md](../benchmarks/README.md).
+Deviations from the original design are listed under "As run" below. This document fixes the method
 before results exist, so the results cannot shape the method.
 
 ## Stage 1: retrieval-only evaluation (implemented)
@@ -131,3 +132,25 @@ Rules:
 - The harness's own context (system prompt, tool definitions) dominates small
   tasks and narrows any difference.
 - One model family; results may differ for others.
+
+## As run (phase 2)
+
+- **Success measure.** The Hallpass corpus is written to be read, not executed
+  (no database), so hidden test suites were replaced by **implementation plans
+  graded with per-task regex rubrics**: 3–5 required facts per task plus trap
+  rules (e.g. citing a superseded decision). Rubrics were written by the agent
+  that wrote the tasks, self-checked against example good and bad plans, and
+  committed before any run.
+- **Strategies.** A, C and D as designed; B split into **B** (tool offered) and
+  **B2** (told to call it first), because in the pilot the agent ignored the
+  offered tool in half the runs.
+- **Isolation.** `claude -p` with `--tools Read,Grep,Glob`, `--strict-mcp-config`,
+  `--setting-sources project`, `--disable-slash-commands`,
+  `--no-session-persistence`, `--exclude-dynamic-system-prompt-sections`, a
+  scratch workspace outside any folder with a CLAUDE.md. The start-up event
+  confirmed exactly the intended tools and no skills. There is no user-level
+  `~/.claude/CLAUDE.md` on the test machine; auto-memory cannot be written
+  with read-only tools.
+- **Analysis.** Per-task paired differences (scores) and geometric-mean ratios
+  (tokens, cost) with 95% bootstrap intervals over tasks, computed from
+  `runs.jsonl` alone. No multiple-comparison correction.

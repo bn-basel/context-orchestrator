@@ -1,3 +1,4 @@
+import gzip
 import json
 import subprocess
 from pathlib import Path
@@ -150,7 +151,7 @@ def test_run_agent_suite_with_a_fake_claude(tmp_path: Path) -> None:
     assert all(r["grade"]["success"] for r in records)
     # Local paths never reach stored files.
     assert "<workspace>" in records[0]["plan"] and str(tmp_path) not in records[0]["plan"]
-    raw = (run_dir / "raw" / "T01-A-0.jsonl").read_text("utf-8")
+    raw = gzip.decompress((run_dir / "raw" / "T01-A-0.jsonl.gz").read_bytes()).decode("utf-8")
     assert '"session_id": "<session>"' in raw
     # Missing usage is unavailable, not zero, and is counted.
     summary = json.loads((run_dir / "run.json").read_text("utf-8"))["summary"]
