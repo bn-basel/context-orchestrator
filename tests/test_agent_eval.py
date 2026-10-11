@@ -231,3 +231,25 @@ def test_b2_resume_and_parallel(tmp_path: Path) -> None:
     summary = json.loads((run_dir / "run.json").read_text("utf-8"))["summary"]
     assert {k: v["runs"] for k, v in summary.items()} == {"B": 4, "B2": 4, "C": 4}
     assert all(v["failed_runs"] == 0 for v in summary.values())
+
+
+def test_b2c_uses_the_compact_service_and_effort_is_passed(tmp_path: Path) -> None:
+    suite = load_suite(SUITE)
+    rubrics = tmp_path / "rubrics.json"
+    rubrics.write_text(json.dumps({"rubrics": {t.id: RUBRIC for t in suite.tasks}}), "utf-8")
+    calls: list = []
+    config = AgentConfig(strategies=("B2", "B2C"), effort="medium")
+    run_dir = run_agent_suite(
+        suite, rubrics, tmp_path / "out", tmp_path / "work", config, task_ids=["T01"],
+        runner=_fake_claude(calls=calls), ctxo_command="ctxo",
+    )  # fmt: skip
+    runs = [c for c in calls if c[1] == "-p"]
+    assert all(c[c.index("--effort") + 1] == "medium" for c in runs)
+    b2c = next(c for c in runs if any("system_b2c.md" in x for x in c))
+    mcp_path = b2c[b2c.index("--mcp-config") + 1]
+    assert mcp_path.endswith("mcp_compact.json")
+    args = json.loads(Path(mcp_path).read_text("utf-8"))["mcpServers"]["ctxo"]["args"]
+    assert args[-4:] == ["--detail", "compact", "--per-kind-limit", "8"]
+    assert "read the files you need" in (
+        tmp_path / "work" / run_dir.name / "system_b2c.md"
+    ).read_text("utf-8")

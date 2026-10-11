@@ -42,12 +42,13 @@ from context_orchestrator.evaluation.claude_cli import parse_claude_cli_result
 from context_orchestrator.evaluation.retrieval_eval import EvalTask, TaskSuite, _git_state
 from context_orchestrator.memory.loader import discover_files
 
-STRATEGIES = ("A", "B", "B2", "C", "D")
-SERVICE_STRATEGIES = ("B", "B2")
+STRATEGIES = ("A", "B", "B2", "B2C", "C", "D")
+SERVICE_STRATEGIES = ("B", "B2", "B2C")
 STRATEGY_NAMES = {
     "A": "full context",
     "B": "context service offered (MCP tool)",
     "B2": "context service, told to use it first",
+    "B2C": "as B2, compact packages (excerpts + locations)",
     "C": "no context (file tools only)",
     "D": "oracle (labelled ranges only)",
 }
@@ -81,11 +82,19 @@ class AgentConfig:
     max_budget_usd: float = 3.0  # per run, API-equivalent; a runaway brake, not a target
     service_args: tuple[str, ...] = ("--retrieval", "hybrid", "--hops", "2")
     workers: int = 1  # parallel claude -p sessions
+    effort: str | None = None  # claude --effort (low, medium, high, xhigh, max)
+    compact_service_args: tuple[str, ...] = ("--detail", "compact", "--per-kind-limit", "8")
     seed: int = 20261011  # run order is shuffled with this seed
 
 
 SYSTEM_B2 = SYSTEM_B + (
     " Start by calling request_context with the task before you read any files."
+)
+
+
+SYSTEM_B2C = SYSTEM_B2 + (
+    " Its results show the opening lines of each relevant place with the file and line"
+    " range; read the files you need in full."
 )
 
 
@@ -221,6 +230,8 @@ def build_command(
         "--strict-mcp-config",
         "--max-budget-usd", str(config.max_budget_usd),
     ]  # fmt: skip
+    if config.effort:
+        cmd += ["--effort", config.effort]
     if mcp_file is not None:
         cmd += ["--mcp-config", str(mcp_file)]
     if system_file is not None:
@@ -275,7 +286,7 @@ def run_agent_suite(
             "rubrics_sha256": hashlib.sha256(rubrics_path.read_bytes()).hexdigest(),
             "tasks": [t.id for t in tasks],
             "prompt_template": PROMPT,
-            "system_prompts": {"B": SYSTEM_B, "B2": SYSTEM_B2},
+            "system_prompts": {"B": SYSTEM_B, "B2": SYSTEM_B2, "B2C": SYSTEM_B2C},
             "summary": None,
         }
         _write_meta(run_dir, meta)
@@ -300,7 +311,14 @@ def run_agent_suite(
         ],
     }  # fmt: skip
     mcp_file.write_text(json.dumps({"mcpServers": {"ctxo": server}}), encoding="utf-8")
-    for name, text in (("system_b.md", SYSTEM_B), ("system_b2.md", SYSTEM_B2)):
+    compact_server = {**server, "args": [*server["args"], *config.compact_service_args]}
+    mcp_compact = ws / "mcp_compact.json"
+    mcp_compact.write_text(json.dumps({"mcpServers": {"ctxo": compact_server}}), "utf-8")
+    for name, text in (
+        ("system_b.md", SYSTEM_B),
+        ("system_b2.md", SYSTEM_B2),
+        ("system_b2c.md", SYSTEM_B2C),
+    ):
         (ws / name).write_text(text, encoding="utf-8")
     for task in tasks:
         (ws / f"oracle_{task.id}.md").write_text(oracle_context(project, task), encoding="utf-8")
@@ -324,9 +342,10 @@ def run_agent_suite(
             "A": full_file,
             "B": ws / "system_b.md",
             "B2": ws / "system_b2.md",
+            "B2C": ws / "system_b2c.md",
             "D": ws / f"oracle_{task.id}.md",
         }.get(strategy)
-        mcp = mcp_file if strategy in SERVICE_STRATEGIES else None
+        mcp = {"B": mcp_file, "B2": mcp_file, "B2C": mcp_compact}.get(strategy)
         cmd = build_command(config, strategy, PROMPT.format(task=task.task), system_file, mcp)
         t0 = time.perf_counter()
         try:

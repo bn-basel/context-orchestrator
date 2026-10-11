@@ -108,6 +108,7 @@ def _build_parser() -> argparse.ArgumentParser:
     ag.add_argument("--reps", type=int, default=1)
     ag.add_argument("--max-budget-usd", type=float, default=3.0)
     ag.add_argument("--workers", type=int, default=1, help="parallel claude sessions")
+    ag.add_argument("--effort", choices=["low", "medium", "high", "xhigh", "max"])
     ag.add_argument("--seed", type=int, default=20261011, help="run-order shuffle seed")
     ag.add_argument(
         "--resume", type=Path, help="continue an earlier run folder (reuses its stored settings)"
@@ -209,6 +210,7 @@ def main(argv: list[str] | None = None) -> int:
                 max_budget_usd=args.max_budget_usd,
                 service_args=tuple(args.service_args.split()),
                 workers=args.workers,
+                effort=args.effort,
                 seed=args.seed,
             )
             run_dir = run_agent_suite(
