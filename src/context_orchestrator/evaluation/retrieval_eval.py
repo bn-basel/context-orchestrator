@@ -331,7 +331,8 @@ def _git_state(cwd: Path) -> dict[str, Any]:
             return None
 
     commit = git("rev-parse", "HEAD")
-    status = git("status", "--porcelain")
+    # Only tracked changes count: untracked output (e.g. other run folders) cannot alter the code.
+    status = git("status", "--porcelain", "--untracked-files=no")
     return {"commit": commit, "dirty": None if status is None else bool(status)}
 
 
