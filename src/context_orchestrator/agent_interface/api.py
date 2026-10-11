@@ -141,15 +141,16 @@ class ContextService:
             raise ValueError(f"evidence is not a verbatim quote from {rel}:{line_start}-{line_end}")
         recorded_at = datetime.now(UTC).isoformat(timespec="seconds")
         finding = Finding(
+            # The same claim about the same lines is one finding, however often it is recorded.
             finding_id=hashlib.sha256(
-                f"{rel}:{line_start}:{line_end}:{claim}:{recorded_at}".encode()
+                f"{rel}:{line_start}:{line_end}:{claim}".encode()
             ).hexdigest()[:16],
             claim=claim,
             evidence=evidence,
             source=SourceRef(rel, line_start, line_end, sha256_bytes(data), recorded_at),
             agent_id=agent_id,
         )
-        self.store.add_finding(finding)
+        self.store.add_finding(finding)  # a repeat of a stored finding is not stored twice
         return finding
 
     def close(self) -> None:

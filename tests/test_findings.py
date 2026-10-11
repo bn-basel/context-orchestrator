@@ -85,6 +85,12 @@ def test_finding_turns_stale_when_its_file_changes(service: ContextService, proj
     assert "STALE: file changed since it was recorded" in package.render_markdown()
 
 
+def test_repeated_finding_is_stored_once(service: ContextService) -> None:
+    _record(service)
+    _record(service)
+    assert service.store.count_findings() == 1
+
+
 def test_findings_survive_reingest(service: ContextService) -> None:
     _record(service)
     service.ingest()

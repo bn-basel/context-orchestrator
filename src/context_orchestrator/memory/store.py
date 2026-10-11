@@ -253,7 +253,13 @@ class MemoryStore:
 
     # -- findings ---------------------------------------------------------
 
-    def add_finding(self, finding: Finding) -> None:
+    def add_finding(self, finding: Finding) -> bool:
+        """Store a finding; False if one with the same id is already stored."""
+        exists = self.conn.execute(
+            "SELECT 1 FROM findings WHERE finding_id = ?", (finding.finding_id,)
+        ).fetchone()
+        if exists:
+            return False
         with self.conn:
             self.conn.execute(
                 "INSERT INTO findings VALUES (?,?,?,?,?,?,?,?,?,?)",
@@ -274,6 +280,7 @@ class MemoryStore:
                 "INSERT INTO findings_fts(finding_id, claim, evidence, path) VALUES (?,?,?,?)",
                 (finding.finding_id, finding.claim, finding.evidence, finding.source.path),
             )
+        return True
 
     def _row_to_finding(self, row: sqlite3.Row) -> Finding:
         return Finding(

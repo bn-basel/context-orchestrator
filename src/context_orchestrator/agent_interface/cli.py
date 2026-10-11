@@ -139,6 +139,27 @@ def _build_parser() -> argparse.ArgumentParser:
         "--work-dir", type=Path, default=Path(tempfile.gettempdir()) / "ctxo-agent-runs"
     )
 
+    lp = sub.add_parser(
+        "loop-probe", help="one tiny call through the own agent loop's API route (costs ~$0.0001)"
+    )
+    lp.add_argument("--model", default="anthropic/claude-haiku-4.5")
+
+    le = sub.add_parser("loop-eval", help="phase 4: pruning or memory experiment, own loop")
+    le.add_argument("experiment", choices=["prune", "memory"])
+    le.add_argument("suite", type=Path, help="task suite (memory: the follow-up suite)")
+    le.add_argument("--rubrics", type=Path, required=True)
+    le.add_argument("--parents", type=Path, help="memory: suite holding the parent tasks")
+    le.add_argument("--parent-rubrics", type=Path, help="memory: rubrics for the parents")
+    le.add_argument("--arms", default="L,LP", help="prune experiment arms (L, LP, S, SP)")
+    le.add_argument("--tasks", help="comma-separated task ids (default: all)")
+    le.add_argument("--reps", type=int, default=1)
+    le.add_argument("--model", default="anthropic/claude-haiku-4.5")
+    le.add_argument("--max-total-usd", type=float, default=2.0, help="estimated; hard stop")
+    le.add_argument("--dry-run", action="store_true", help="list the runs; call nothing")
+    le.add_argument("--seed", type=int, default=20261011)
+    le.add_argument("--out", type=Path, default=Path("benchmarks/results"))
+    le.add_argument("--work-dir", type=Path, default=Path(tempfile.gettempdir()) / "ctxo-loop-runs")
+
     ev = sub.add_parser("eval-retrieval", help="score retrieval against a labelled task suite")
     ev.add_argument("suite", type=Path, help="task suite JSON (see benchmarks/tasks/)")
     ev.add_argument("--gate", type=Path, help="gate criteria JSON (e.g. benchmarks/gate1.json)")
@@ -192,6 +213,71 @@ def _eval_retrieval(args: argparse.Namespace) -> int:
     )
     print((run.run_dir / "summary.md").read_text(encoding="utf-8"))
     print(f"Raw results: {run.run_dir}")
+    return 0
+
+
+def _loop_probe(args: argparse.Namespace) -> int:
+    from context_orchestrator.evaluation import own_loop
+
+    status = own_loop.openrouter_key_status()
+    print(f"key status (USD): {status}")
+    if status is not None and status.get("limit") is None:
+        print("warning: this key has no credit limit; set one on openrouter.ai before experiments")
+    model = own_loop.openrouter_model()
+    turn = model(
+        model=args.model,
+        max_tokens=16,
+        messages=[{"role": "user", "content": "Reply with the single word OK."}],
+    )
+    print(f"response id: {turn.id}\nstop_reason: {turn.stop_reason}")
+    print(f"content: {turn.content}\nusage: {json.dumps(turn.usage)}")
+    print(f"estimated cost: {own_loop.estimate_cost(args.model, turn.usage)}")
+    print(f"measured cost: {own_loop.openrouter_generation_cost(turn.id or '')}")
+    return 0
+
+
+def _loop_eval(args: argparse.Namespace) -> int:
+    from context_orchestrator.evaluation import own_loop
+    from context_orchestrator.evaluation.retrieval_eval import load_suite
+
+    suite = load_suite(args.suite)
+    rubrics = own_loop.rubrics_for(args.rubrics, suite)
+    task_ids = args.tasks.split(",") if args.tasks else None
+    config = own_loop.LoopConfig(
+        model=args.model,
+        max_total_usd=args.max_total_usd,
+        seed=args.seed,
+    )
+    meta: dict = {
+        "suite": {"name": suite.name, "sha256": suite.sha256},
+        "rubrics_sha256": own_loop.sha256_file(args.rubrics),
+    }
+    if args.experiment == "prune":
+        arms = [a.strip() for a in args.arms.split(",")]
+        unknown = [a for a in arms if a not in own_loop.ARMS or a in own_loop.MEMORY_ARMS]
+        if unknown:
+            raise ValueError(f"prune arms are L, LP, S, SP; not {unknown}")
+        jobs = own_loop.plan_prune(suite, rubrics, arms, args.reps, task_ids, args.seed)
+    else:
+        if not (args.parents and args.parent_rubrics):
+            raise ValueError("the memory experiment needs --parents and --parent-rubrics")
+        parents = load_suite(args.parents)
+        jobs = own_loop.plan_memory(
+            suite, rubrics, parents, own_loop.rubrics_for(args.parent_rubrics, parents),
+            own_loop.load_followups(args.suite), args.reps, task_ids, args.seed,
+        )  # fmt: skip
+        meta["parents"] = {"name": parents.name, "sha256": parents.sha256}
+        meta["parent_rubrics_sha256"] = own_loop.sha256_file(args.parent_rubrics)
+    print(f"{len(jobs)} runs planned (hard stop at ~${args.max_total_usd} estimated):")
+    for job in jobs:
+        print(f"  {job.task.id} {job.arm} {job.role} rep {job.rep}")
+    if args.dry_run:
+        return 0
+    run_dir = own_loop.run_experiment(
+        args.experiment, jobs, suite.project, args.out, args.work_dir, config, meta
+    )
+    print((run_dir / "summary.md").read_text(encoding="utf-8"))
+    print(f"Raw results: {run_dir}")
     return 0
 
 
@@ -262,6 +348,18 @@ def main(argv: list[str] | None = None) -> int:
         print((run_dir / "summary.md").read_text(encoding="utf-8"))
         print(f"Raw results: {run_dir}")
         return 0
+    if args.command == "loop-probe":
+        try:
+            return _loop_probe(args)
+        except RuntimeError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+    if args.command == "loop-eval":
+        try:
+            return _loop_eval(args)
+        except (ValueError, OSError, RuntimeError, KeyError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
     if args.command == "eval-retrieval":
         try:
             return _eval_retrieval(args)
