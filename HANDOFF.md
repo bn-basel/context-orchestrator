@@ -3,7 +3,7 @@
 Read this first when resuming work in a new session. Keep it current: update
 it at the end of every milestone, and before a session's context runs out.
 
-**Last updated:** 2026-10-11, phase 1c done; owner decision pending on how to proceed.
+**Last updated:** 2026-10-11, phase 1c finished (incl. two-step retrieval); owner decision pending.
 
 ## Resume prompt
 
@@ -19,7 +19,7 @@ Paste into a new chat opened in `C:\WIP\projects\Agent-Memory`:
 | 0 Foundation | done: ingest → retrieve → package → telemetry, CLI + Python API |
 | 1 Measure retrieval | done on the tiny sample: gate 1 passed narrowly (recall 0.83) |
 | 1b Larger corpus | done: Hallpass (~140k tokens, 20 tasks). **Gate 1 not passed**: recall 0.56, precision 0.28, 2 missed "not found" cases |
-| 1c Improve retrieval | **done**: keyword steps + hybrid (embeddings). Hallpass recall stuck ~0.57 (ceiling 0.92); sample 0.94 with hybrid. **Owner decision pending** (see Next step) |
+| 1c Improve retrieval | **done**. Best: hybrid + 2 hops, Hallpass recall 0.61 / precision 0.32; gate 1 (0.80) not reached by any single-request method. **Owner decision pending** |
 | 2 Agent comparison | designed in docs/benchmark-methodology.md, not built |
 | 3–5 | planned, see ROADMAP.md |
 
@@ -30,18 +30,17 @@ corpus; the token budget ignores rendering overhead (bug).
 
 ## Next step: owner decision pending
 
-Phase 1c result (benchmarks/README.md, "Phase 1c log" and "step 5"): no
-single-shot method gets Hallpass recall near 0.80. Needed chunks are often
-relevant by reasoning (ticket → function → what it calls), not by words or
-topic. Options put to the owner:
+Phase 1c is finished (benchmarks/README.md, "Phase 1c conclusion"). Option A
+(two-step retrieval) was built and measured: query drift with BM25 seeds,
+small gain with hybrid seeds (0.61). Options now put to the owner:
 
-- **A. Multi-step retrieval** (recommended): let the service follow up its own
-  first results (expand the query with names found in the top items) and
-  measure; still no model calls. Cheap, directly targets the diagnosed gap.
-- **B. Go to phase 2 now** with gate 1 recorded as failed for single-shot,
-  arguing that strategy B's agent does multi-step search itself.
-- **C. Label check**: a second agent labels the same 20 tasks independently;
-  agreement shows how much of the "miss" is label subjectivity.
+- **Phase 2** (recommended): build the agent comparison, with the service
+  offered to strategy B as a tool it can call repeatedly. Config for B:
+  `--retrieval hybrid --hops 2` (fallback bm25). Needs Claude calls on the
+  subscription, so confirm the run budget with the owner first.
+- **Held-out check**: a fresh agent writes ~15 new tasks; confirms the
+  config choice isn't tuned to the dev set (~0.4M subagent tokens).
+- **Label check**: a second agent labels the same 20 tasks independently.
 
 Embedding setup if needed again: start the toolbox Ollama with
 `OLLAMA_MODELS=C:\WIP\tools\ollama\models C:\WIP\tools\ollama\ollama.exe serve`;

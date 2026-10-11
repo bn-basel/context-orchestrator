@@ -48,31 +48,30 @@ Phase 0  foundation ─▶ Phase 1  measure retrieval ─▶ Phase 1b  larger co
       cases). Diagnostic sweep shows ranking is the main loss, reach (~15%)
       the smaller one. Details: [benchmarks/README.md](benchmarks/README.md).
 
-## Phase 1c: improve retrieval (next)
+## Phase 1c: improve retrieval (done)
 
-The 20 Hallpass tasks are now the **development set**: improvements are
-measured on them, so they will slowly overfit to them. Before claiming gate 1,
-a fresh agent writes a **held-out set** after the changes are frozen, and the
-gate is judged on that set.
+Development set: the 20 Hallpass tasks. Log: [benchmarks/README.md](benchmarks/README.md).
 
-Candidate improvements, cheapest first, each measured separately:
+- [x] Budget covers the rendered package (bug fix, kept).
+- [x] Weak-match filter `min_relative_score` (precision dial, not a
+      missing-information detector; off).
+- [x] Standard NLTK stopwords (kept).
+- [x] Reference following `max_references` (finds named functions but is
+      zero-sum at a fixed budget; off).
+- [x] Hybrid retrieval with local embeddings (`--retrieval hybrid`): fixes
+      vocabulary mismatch (sample 0.81 → 0.94), barely moves Hallpass.
+- [x] Two-step retrieval `--hops 2`: query drift with BM25 seeds; with hybrid
+      seeds the best result so far (Hallpass recall 0.61, precision 0.32).
+- [x] Conclusion: **no single-request method reaches gate 1 (0.80)** on
+      realistic tasks; the missing pieces need reasoning-driven hops.
 
-- [ ] Fix the budget so it counts the rendered package, not just item text.
-- [ ] "Not found" detection: treat a kind as unresolved when its best match
-      is weak relative to the query's best match, instead of only on zero
-      matches.
-- [ ] Reference following: when a returned chunk names a function, module or
-      table (e.g. a known issue citing `recurring.occurrence_windows()`), pull
-      in the chunk that defines it.
-- [ ] Ranking tweaks: index code chunks with their module docstring and file
-      path; prefer covering more distinct query terms; limit near-duplicates.
-- [ ] Only if the cheap fixes stall: hybrid search with a local embedding
-      model (phase 5 moved forward; needs a download, ask first).
+## Gate 1 (single request per task): not passed
 
-## Gate 1 (judged on the held-out set)
-
-Criteria unchanged in [benchmarks/gate1.json](benchmarks/gate1.json). Changing
-them now, after seeing results, would be moving the goalposts.
+Originally to be judged on a held-out set after phase 1c. Since no method
+passes on the development set, the held-out set is only needed to confirm a
+configuration choice. The criteria in
+[benchmarks/gate1.json](benchmarks/gate1.json) stay as committed: changing them
+after seeing results would be moving the goalposts.
 
 ## Phase 2: agent comparison
 
