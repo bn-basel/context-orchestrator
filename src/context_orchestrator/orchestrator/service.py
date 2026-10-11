@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 
 from context_orchestrator.memory.loader import sha256_bytes
@@ -26,6 +27,9 @@ from context_orchestrator.models import (
     OmittedItem,
     SourceRef,
     Status,
+    render_header,
+    render_item,
+    render_unresolved,
 )
 from context_orchestrator.retrieval.lexical import LexicalRetriever, ScoredChunk, extract_terms
 from context_orchestrator.telemetry.events import (
@@ -84,9 +88,13 @@ class ContextOrchestrator:
                 )
             ranked_by_kind.append(kept)
 
-        # 2. Select round-robin across kinds within the token budget.
+        # 2. Select round-robin across kinds within the token budget. The budget covers the
+        #    whole rendered package: header and unresolved section are reserved first, and
+        #    each item is charged for its rendered block (heading, flags and text).
         items: list[ContextItem] = []
-        used_tokens = 0
+        used_tokens = estimate_tokens(render_header(request.task)) + estimate_tokens(
+            render_unresolved(unresolved)
+        )
         selected: set[str] = set()
         fingerprints: dict[str, str | None] = {}
         for rank in range(max((len(r) for r in ranked_by_kind), default=0)):
@@ -94,7 +102,8 @@ class ContextOrchestrator:
             for hit in sorted(round_hits, key=lambda h: -h.score):
                 if hit.chunk.chunk_id in selected:
                     continue
-                cost = estimate_tokens(hit.chunk.text)
+                item = self._to_item(hit, fingerprints)
+                cost = item.estimated_tokens
                 if used_tokens + cost > request.max_tokens:
                     omitted.append(
                         OmittedItem(
@@ -105,7 +114,7 @@ class ContextOrchestrator:
                     continue
                 selected.add(hit.chunk.chunk_id)
                 used_tokens += cost
-                items.append(self._to_item(hit, cost, fingerprints))
+                items.append(item)
 
         # 3. Annotate.
         stale = [i for i in items if i.stale]
@@ -141,11 +150,9 @@ class ContextOrchestrator:
 
     # -- helpers ------------------------------------------------------------
 
-    def _to_item(
-        self, hit: ScoredChunk, cost: int, fingerprints: dict[str, str | None]
-    ) -> ContextItem:
+    def _to_item(self, hit: ScoredChunk, fingerprints: dict[str, str | None]) -> ContextItem:
         chunk = hit.chunk
-        return ContextItem(
+        item = ContextItem(
             kind=chunk.kind,
             status=chunk.status,
             heading=chunk.heading,
@@ -154,8 +161,9 @@ class ContextOrchestrator:
             score=round(hit.score, 4),
             matched_terms=hit.matched_terms,
             stale=self._is_stale(chunk.source, fingerprints),
-            estimated_tokens=cost,
+            estimated_tokens=0,
         )
+        return replace(item, estimated_tokens=estimate_tokens(render_item(item)))
 
     def _is_stale(self, source: SourceRef, fingerprints: dict[str, str | None]) -> bool | None:
         root = self.store.project_root

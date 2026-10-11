@@ -132,7 +132,8 @@ class ContextItem:
     score: float  # BM25 relevance (higher is better); comparable within one query only
     matched_terms: tuple[str, ...]
     stale: bool | None  # True if the file changed since ingestion; None if not checked
-    estimated_tokens: int
+    estimated_tokens: int  # of this item's rendered block (heading, flags and text)
+    via: str | None = None  # why it was added when not by search, e.g. "referenced by …"
 
 
 @dataclass(frozen=True, slots=True)
@@ -161,19 +162,36 @@ class ContextPackage:
         return asdict(self)
 
     def render_markdown(self) -> str:
-        """Render the package as the text an agent would put in its prompt."""
-        lines = [f"# Context package for: {self.task}", ""]
-        for item in self.items:
-            flags = [item.kind.value, item.status.value]
-            if item.stale:
-                flags.append("STALE: file changed since ingestion")
-            lines.append(f"## {item.heading}  ({item.source.label()})")
-            lines.append(f"_[{', '.join(flags)}]_")
-            lines.append("")
-            lines.append(item.text.rstrip())
-            lines.append("")
-        if self.unresolved:
-            lines.append("## Unresolved")
-            lines.extend(f"- {q}" for q in self.unresolved)
-            lines.append("")
-        return "\n".join(lines)
+        """Render the package as the text an agent would put in its prompt.
+
+        The text is the concatenation of independently rendered blocks, so the
+        orchestrator can budget each block before the package exists.
+        """
+        return (
+            render_header(self.task)
+            + "".join(render_item(item) for item in self.items)
+            + render_unresolved(self.unresolved)
+        )
+
+
+def render_header(task: str) -> str:
+    return f"# Context package for: {task}\n\n"
+
+
+def render_item(item: ContextItem) -> str:
+    flags = [item.kind.value, item.status.value]
+    if item.stale:
+        flags.append("STALE: file changed since ingestion")
+    if item.via:
+        flags.append(item.via)
+    return (
+        f"## {item.heading}  ({item.source.label()})\n"
+        f"_[{', '.join(flags)}]_\n\n"
+        f"{item.text.rstrip()}\n\n"
+    )
+
+
+def render_unresolved(unresolved: list[str]) -> str:
+    if not unresolved:
+        return ""
+    return "## Unresolved\n" + "".join(f"- {q}\n" for q in unresolved) + "\n"

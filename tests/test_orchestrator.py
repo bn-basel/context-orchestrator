@@ -124,3 +124,10 @@ def test_markdown_rendering_includes_sources_and_unresolved(service: ContextServ
     text = package.render_markdown()
     assert "(docs/known-issues.md:" in text
     assert "## Unresolved" in text
+
+
+@pytest.mark.parametrize("budget", [60, 150, 400, 1000, 4000])
+def test_rendered_package_never_exceeds_the_budget(service: ContextService, budget: int) -> None:
+    package = service.request(ContextRequest(task=BUG12_TASK, max_tokens=budget))
+    assert package.estimated_tokens.value <= budget
+    assert sum(i.estimated_tokens for i in package.items) < budget
