@@ -5,6 +5,27 @@ needs** instead of exploring the files itself, or being handed everything?
 This repository holds a small context service built to test that, the
 benchmark harness, and every raw result.
 
+## TL;DR
+
+- **The question:** coding agents burn most of their tokens re-reading
+  project context. Can a shared context service, plus ideas like pruning
+  and memory, cut that cost without hurting the work?
+- **What we did:** 370 agent runs on a synthetic ~140k-token project with 20
+  graded tasks: 300 in Claude Code (Haiku 4.5), and 70 in our own agent loop
+  (Haiku 5.5, $0.43 actually charged).
+- **What worked:** asking the context service first cut cost by **~21%**
+  with no loss in quality. Just offering it didn't: agents often skipped it.
+- **What didn't:** the whole project in the prompt **doubled** the cost.
+  **Pruning** old tool output from the agent's context, the in-place editing
+  idea behind Meta's *Context Language Models* and the Claude API's context
+  editing, looked like a 33–53% saving in replays of the recordings but cost
+  **17% more** when actually run on a newer model. **Memory across tasks**
+  produced accurate findings, but **saved nothing** (×0.98).
+- **The lesson:** agents re-read what they're given rather than trust it.
+  The bottleneck is trust, not retrieval. And savings estimated from one
+  model's recordings didn't survive a newer model: measure, don't
+  extrapolate.
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/img/results-dark.svg">
   <img alt="Cost and plan score relative to a baseline: five context strategies from 300 Claude Code runs (Haiku 4.5), and pruning and cross-task memory from 70 runs of our own agent loop (Haiku 5.5)" src="docs/img/results-light.svg">
