@@ -356,6 +356,7 @@ def run_suite(
 ) -> RunResult:
     """Ingest the suite's project into a fresh store, score every task, write raw files."""
     config = config or RetrievalConfig()
+    git_state = _git_state(suite.path.resolve().parent)  # before this run writes any files
     started_at = datetime.now(UTC)
     run_id = f"{started_at:%Y%m%dT%H%M%SZ}-{suite.name}"
     run_dir = Path(out_dir) / run_id
@@ -381,7 +382,7 @@ def run_suite(
         "started_at": started_at.isoformat(timespec="seconds"),
         "finished_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "tool_version": __version__,
-        "git": _git_state(suite.path.resolve().parent),
+        "git": git_state,
         "environment": {
             "python": sys.version.split()[0],
             "platform": platform.platform(),
@@ -446,7 +447,7 @@ def render_summary(run_meta: dict, results: list[dict]) -> str:
     lines += [
         "",
         f"Mean recall {_fmt(s['mean_recall'])}, mean precision {_fmt(s['mean_precision'])}, "
-        f"mean package ~{s['mean_package_tokens']} tokens = "
+        f"mean package ~{s['mean_package_tokens']:.0f} tokens = "
         f"{_fmt(s['mean_package_to_corpus_ratio'])} of the full corpus.",
         f"Forbidden items returned: {s['forbidden_returned']}. "
         f"Expected-unresolved misses: {s['unresolved_misses']}. "
