@@ -253,3 +253,18 @@ def test_b2c_uses_the_compact_service_and_effort_is_passed(tmp_path: Path) -> No
     assert "read the files you need" in (
         tmp_path / "work" / run_dir.name / "system_b2c.md"
     ).read_text("utf-8")
+
+
+def test_b2v_uses_full_service_and_its_own_instruction(tmp_path: Path) -> None:
+    suite = load_suite(SUITE)
+    rubrics = tmp_path / "rubrics.json"
+    rubrics.write_text(json.dumps({"rubrics": {t.id: RUBRIC for t in suite.tasks}}), "utf-8")
+    calls: list = []
+    run_dir = run_agent_suite(
+        suite, rubrics, tmp_path / "out", tmp_path / "work", AgentConfig(strategies=("B2V",)),
+        task_ids=["T01"], runner=_fake_claude(calls=calls), ctxo_command="ctxo",
+    )  # fmt: skip
+    cmd = next(c for c in calls if c[1] == "-p")
+    assert cmd[cmd.index("--mcp-config") + 1].endswith("mcp.json")
+    text = (tmp_path / "work" / run_dir.name / "system_b2v.md").read_text("utf-8")
+    assert text.startswith("A context service") and "rely on them" in text

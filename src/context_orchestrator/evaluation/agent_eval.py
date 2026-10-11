@@ -42,13 +42,14 @@ from context_orchestrator.evaluation.claude_cli import parse_claude_cli_result
 from context_orchestrator.evaluation.retrieval_eval import EvalTask, TaskSuite, _git_state
 from context_orchestrator.memory.loader import discover_files
 
-STRATEGIES = ("A", "B", "B2", "B2C", "C", "D")
-SERVICE_STRATEGIES = ("B", "B2", "B2C")
+STRATEGIES = ("A", "B", "B2", "B2C", "B2V", "C", "D")
+SERVICE_STRATEGIES = ("B", "B2", "B2C", "B2V")
 STRATEGY_NAMES = {
     "A": "full context",
     "B": "context service offered (MCP tool)",
     "B2": "context service, told to use it first",
     "B2C": "as B2, compact packages (excerpts + locations)",
+    "B2V": "as B2, told to rely on the verbatim excerpts",
     "C": "no context (file tools only)",
     "D": "oracle (labelled ranges only)",
 }
@@ -95,6 +96,12 @@ SYSTEM_B2 = SYSTEM_B + (
 SYSTEM_B2C = SYSTEM_B2 + (
     " Its results show the opening lines of each relevant place with the file and line"
     " range; read the files you need in full."
+)
+
+
+SYSTEM_B2V = SYSTEM_B2 + (
+    " Its excerpts are verbatim with exact file paths and line ranges: rely on them, and"
+    " open a file only for parts that were not shown."
 )
 
 
@@ -286,7 +293,12 @@ def run_agent_suite(
             "rubrics_sha256": hashlib.sha256(rubrics_path.read_bytes()).hexdigest(),
             "tasks": [t.id for t in tasks],
             "prompt_template": PROMPT,
-            "system_prompts": {"B": SYSTEM_B, "B2": SYSTEM_B2, "B2C": SYSTEM_B2C},
+            "system_prompts": {
+                "B": SYSTEM_B,
+                "B2": SYSTEM_B2,
+                "B2C": SYSTEM_B2C,
+                "B2V": SYSTEM_B2V,
+            },  # fmt: skip
             "summary": None,
         }
         _write_meta(run_dir, meta)
@@ -318,6 +330,7 @@ def run_agent_suite(
         ("system_b.md", SYSTEM_B),
         ("system_b2.md", SYSTEM_B2),
         ("system_b2c.md", SYSTEM_B2C),
+        ("system_b2v.md", SYSTEM_B2V),
     ):
         (ws / name).write_text(text, encoding="utf-8")
     for task in tasks:
@@ -343,9 +356,10 @@ def run_agent_suite(
             "B": ws / "system_b.md",
             "B2": ws / "system_b2.md",
             "B2C": ws / "system_b2c.md",
+            "B2V": ws / "system_b2v.md",
             "D": ws / f"oracle_{task.id}.md",
         }.get(strategy)
-        mcp = {"B": mcp_file, "B2": mcp_file, "B2C": mcp_compact}.get(strategy)
+        mcp = {"B": mcp_file, "B2": mcp_file, "B2C": mcp_compact, "B2V": mcp_file}.get(strategy)
         cmd = build_command(config, strategy, PROMPT.format(task=task.task), system_file, mcp)
         t0 = time.perf_counter()
         try:
