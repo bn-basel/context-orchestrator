@@ -7,8 +7,7 @@ negative result is written up rather than worked around.
 ```
 Phase 0  foundation ─▶ Phase 1  measure retrieval ─▶ Phase 1b  larger corpus ─▶ Phase 1c  improve retrieval
    ─▶ Gate 1 (single request: not passed) ─▶ Phase 2  agent comparison ─▶ Gate 2 (answered for one setting)
-   ─▶ Phase 3  agent access ─▶ Phase 4  scale up
-   ─▶ Phase 5  smarter search (only if evidence demands it)
+   ─▶ Phase 3  why savings stop where they do ─▶ Next: in-place pruning, multi-task memory, robustness
 ```
 
 ## Phase 0: foundation (done)
@@ -105,33 +104,37 @@ detectable quality difference); **no when the tool is merely offered**
 [benchmarks/README.md](benchmarks/README.md). Generality (other corpora,
 models, graders) is untested.
 
+## Phase 3: why the savings stop where they do (done)
+
+- [x] MCP server exposing `request_context` (`ctxo mcp`).
+- [x] 3a: compact excerpts raise retrieval recall (0.61 → 0.74) but show no
+      agent benefit in a 10-run check (the agent opens the files instead).
+- [x] 3b: trace analysis of the 300 runs (`ctxo analyze-traces`): with the
+      service, agents read half as much, but 35% of what they still read was
+      already served; "rely on the excerpts" instructions didn't change that.
+- [x] 3c: what-if replay (`ctxo what-if`): whole-file answers would cost more;
+      **pruning old tool output in place could save 33–53% of input tokens**
+      (upper bound, untested).
+- [x] 3d: a reader sub-agent doing all reading is worse (1.27× tokens, lower
+      quality).
+- [x] Hybrid retrieval (BM25 + local embeddings) and follow-up hops, added
+      once keyword search had demonstrably stalled.
+
 ## Next: candidates, in order of evidence
 
-- [ ] **Better retrieval recall** (the oracle shows ~60% token savings are
-      possible; the service reaches ~20%): e.g. task decomposition by the
-      agent, smarter follow-ups, a reranker.
-- [ ] **Robustness of the phase 2 result**: a second model (Sonnet), a second
-      corpus, an independent rubric/label check.
-- [ ] **Held-out task set** for the retrieval configuration.
-
-## Phase 3: real agent access
-
-- [x] MCP server exposing `request_context` (`ctxo mcp`; built for phase 2).
-- [ ] Memory write path: agents propose findings, stored with provenance and
-      status, applied only after explicit review (no silent writes).
-
-## Phase 4: scale up
-
-- [ ] Several specialist agents sharing one store, with per-agent telemetry.
-- [ ] Larger and more varied corpora.
-
-## Phase 5: smarter search (conditional)
-
-- [ ] Hybrid retrieval (BM25 + embeddings), **only if** measurements show
-      vocabulary mismatch matters (phase 1 T07 is the first data point),
-      compared against the BM25 baseline on the same suite.
+- [ ] **In-place context pruning** in an agent loop that can edit its own
+      context (Claude API context editing). Largest estimated lever; check its
+      interaction with prompt caching.
+- [ ] **Multi-task benchmark with a memory write path**: agents propose
+      verified findings (stored with provenance and status, applied only after
+      review), and later tasks on the same project start ahead.
+- [ ] **Robustness**: a second model, a real open-source corpus, an
+      independent label and rubric check, and a held-out task set.
+- [ ] **Several specialist agents sharing one store**, with per-agent
+      telemetry.
 
 ## Out of scope until evidence says otherwise
 
 Vector databases, distributed infrastructure, large agent frameworks, and
-automatic summarisation of retrieved context.
+replacing retrieved context with summaries (phase 3d: summaries lost the
+details plans needed).
