@@ -3,7 +3,7 @@
 Read this first when resuming work in a new session. Keep it current: update
 it at the end of every milestone, and before a session's context runs out.
 
-**Last updated:** 2026-10-11, end of phase 1b.
+**Last updated:** 2026-10-11, phase 1c (keyword steps done; semantic step pending approval).
 
 ## Resume prompt
 
@@ -19,7 +19,7 @@ Paste into a new chat opened in `C:\WIP\projects\Agent-Memory`:
 | 0 Foundation | done: ingest → retrieve → package → telemetry, CLI + Python API |
 | 1 Measure retrieval | done on the tiny sample: gate 1 passed narrowly (recall 0.83) |
 | 1b Larger corpus | done: Hallpass (~140k tokens, 20 tasks). **Gate 1 not passed**: recall 0.56, precision 0.28, 2 missed "not found" cases |
-| 1c Improve retrieval | **next** |
+| 1c Improve retrieval | **in progress**: keyword steps 1–4 done, recall still ~0.56 (log in benchmarks/README.md). Next: semantic ranking, **waiting for owner approval to download an embedding model** |
 | 2 Agent comparison | designed in docs/benchmark-methodology.md, not built |
 | 3–5 | planned, see ROADMAP.md |
 
@@ -28,20 +28,21 @@ Diagnosis (benchmarks/README.md): ranking is the main loss (recall 0.56 →
 23% of the corpus; "not found" can't be detected by zero matches in a big
 corpus; the token budget ignores rendering overhead (bug).
 
-## Next step (phase 1c)
+## Next step (phase 1c, semantic ranking)
 
-1. Treat `benchmarks/tasks/hallpass.json` as the **development set**. Improve
-   retrieval in small, separately measured steps (candidates and order in
-   ROADMAP.md, phase 1c). Commit each change, then run
-   `ctxo eval-retrieval benchmarks/tasks/hallpass.json --gate benchmarks/gate1.json`
-   from a clean tree and commit the run folder.
-2. Keep the old default run as the baseline; never overwrite results.
-3. When changes are frozen, have a **fresh agent** write a held-out suite
-   (`benchmarks/tasks/hallpass-holdout.json`) the same way as before (it sees
-   only the corpus and the format example; commit before running). Judge
-   gate 1 on that suite.
-4. Embeddings (hybrid search) only if the cheap fixes stall. They need a model
-   download, so ask the owner first.
+Keyword tweaks have stalled (see "Phase 1c log" in benchmarks/README.md).
+Plan, once the owner approves the download:
+
+1. Embedding model via the toolbox Ollama (`C:\WIP	ools\ollama\ollama.exe`,
+   no embedding model installed yet). Candidate: `nomic-embed-text`
+   (Apache-2.0, ~274 MB). Called over Ollama's local HTTP API with `urllib`,
+   so the core stays standard-library only; the feature is optional.
+2. Store one vector per chunk in SQLite (blob), computed at ingest, skipped
+   for unchanged files.
+3. Hybrid ranking: BM25 and vector similarity fused with reciprocal rank
+   fusion, per kind. Measure on the dev set (hallpass.json), commit each step.
+4. Then the held-out task suite (fresh agent, committed before running);
+   judge gate 1 on it.
 
 ## Decisions already made (do not re-ask)
 
@@ -60,6 +61,8 @@ corpus; the token budget ignores rendering overhead (bug).
   a fifth agent writes tasks seeing only the corpus. Reuse this pattern for
   the held-out set.
 - Gate 1 criteria stay as committed; don't relax them after seeing results.
+- `min_relative_score` and `max_references` exist but default to off (no net
+  gain measured). Standard NLTK stopwords and the rendered-package budget are on.
 
 ## Facts learned the hard way
 
