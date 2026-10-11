@@ -81,5 +81,6 @@ forward"):
 git log --oneline -8
 uv run pytest
 uv run ruff check .
+uv run ruff format --check .   # CI runs this too (it also formats Markdown code blocks)
 uv run ctxo eval-retrieval benchmarks/tasks/sample_project.json --gate benchmarks/gate1.json --out benchmarks/scratch
 ```
