@@ -5,8 +5,8 @@ features starts only when the previous gate's evidence supports it, and a
 negative result is written up rather than worked around.
 
 ```
-Phase 0  foundation ─▶ Phase 1  measure retrieval ─▶ Gate 1 ─▶ Phase 1b  larger corpus ─▶ Gate 1 again
-   ─▶ Phase 2  agent comparison ─▶ Gate 2 ─▶ Phase 3  agent access ─▶ Phase 4  scale up
+Phase 0  foundation ─▶ Phase 1  measure retrieval ─▶ Phase 1b  larger corpus ─▶ Phase 1c  improve retrieval
+   ─▶ Gate 1 (held-out tasks) ─▶ Phase 2  agent comparison ─▶ Gate 2 ─▶ Phase 3  agent access ─▶ Phase 4  scale up
    ─▶ Phase 5  smarter search (only if evidence demands it)
 ```
 
@@ -38,25 +38,41 @@ Phase 0  foundation ─▶ Phase 1  measure retrieval ─▶ Gate 1 ─▶ Phase
 - [x] First run: **gate 1 passed narrowly** (recall 0.83, precision 0.40).
       Findings and caveats: [benchmarks/README.md](benchmarks/README.md).
 
-## Phase 1b: a corpus where the question matters (next)
+## Phase 1b: a corpus where the question matters (done)
 
-The sample corpus is ~2.6k tokens, smaller than one Claude Code turn's
-harness overhead, so phase 2 on it cannot show savings.
+- [x] Hallpass: synthetic corpus by four separate authoring agents, ~140k
+      tokens (estimated), 54× the sample. Spec kept outside the corpus.
+- [x] 20 tasks / 107 labels by a fifth agent that saw only the corpus,
+      committed before the first run.
+- [x] Gate 1 re-run: **not passed** (recall 0.56, two missed "not found"
+      cases). Diagnostic sweep shows ranking is the main loss, reach (~15%)
+      the smaller one. Details: [benchmarks/README.md](benchmarks/README.md).
 
-- [ ] Choose the corpus: a larger synthetic fixture (controllable, easy to
-      label) or a pinned snapshot of a real open-source repository (more
-      credible, needs a compatible licence). Target: at least 20× the current
-      size.
-- [ ] 15–25 labelled tasks on it, committed before running.
-- [ ] Re-run gate 1 on the new corpus.
-- [ ] Optional, measured as separate configurations: a higher
-      `per_kind_limit` (addresses the T02 miss) and a package-size/recall
-      sweep over `max_tokens`.
+## Phase 1c: improve retrieval (next)
 
-## Gate 1 (re-check on the larger corpus)
+The 20 Hallpass tasks are now the **development set**: improvements are
+measured on them, so they will slowly overfit to them. Before claiming gate 1,
+a fresh agent writes a **held-out set** after the changes are frozen, and the
+gate is judged on that set.
 
-Criteria in [benchmarks/gate1.json](benchmarks/gate1.json). If it fails,
-improve retrieval and re-measure before phase 2.
+Candidate improvements, cheapest first, each measured separately:
+
+- [ ] Fix the budget so it counts the rendered package, not just item text.
+- [ ] "Not found" detection: treat a kind as unresolved when its best match
+      is weak relative to the query's best match, instead of only on zero
+      matches.
+- [ ] Reference following: when a returned chunk names a function, module or
+      table (e.g. a known issue citing `recurring.occurrence_windows()`), pull
+      in the chunk that defines it.
+- [ ] Ranking tweaks: index code chunks with their module docstring and file
+      path; prefer covering more distinct query terms; limit near-duplicates.
+- [ ] Only if the cheap fixes stall: hybrid search with a local embedding
+      model (phase 5 moved forward; needs a download, ask first).
+
+## Gate 1 (judged on the held-out set)
+
+Criteria unchanged in [benchmarks/gate1.json](benchmarks/gate1.json). Changing
+them now, after seeing results, would be moving the goalposts.
 
 ## Phase 2: agent comparison
 

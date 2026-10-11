@@ -64,3 +64,61 @@ a corpus large enough for the question to matter (see ROADMAP, phase 1b).
 Threats specific to this run: one author wrote the fixture, the retriever,
 the tasks and the labels; nine tasks is a small sample; T01's output was seen
 during development.
+
+## Phase 1b result: Hallpass corpus (run `20261011T013257Z-hallpass`)
+
+**Corpus.** A synthetic council booking system written by four separate
+authoring agents from a shared spec ([corpora/hallpass.spec.md](corpora/hallpass.spec.md),
+kept outside the corpus; known cross-area drift in [corpora/hallpass.notes.md](corpora/hallpass.notes.md)).
+163 ingested files, 1,035 chunks, ~140k tokens (estimated): about 54× the
+sample project. Committed in `418ac48` before any tasks existed.
+
+**Tasks.** 20 tasks with 107 relevant labels, written by a fifth agent that
+read only the corpus (not the spec, the retriever or any results) and phrased
+them as real tickets. Committed in `4f93855` before the first run.
+
+**Result at the default config** (`max_tokens=4000`, `per_kind_limit=3`):
+
+| Metric | Value | Gate 1 |
+|---|---|---|
+| Mean recall | 0.56 | ≥ 0.80: **fail** |
+| Mean precision | 0.28 | none |
+| Superseded items returned | 0 | pass |
+| Expected "not found" kinds reported | 0 of 2 | **fail** |
+| Assumptions delivered with their label | all | pass |
+| Mean package size | ~3.1k tokens, 0.02 of the corpus (estimated) | pass |
+
+**Gate 1: not passed.** By category, recall is highest for assumption traps
+(0.90) and schema tasks (0.75), and lowest for superseded traps (0.30: the
+superseded ADR is correctly withheld, but most of the current material is
+missed too) and decision-constrained features (0.42).
+
+**Diagnostic sweep** (same commit `2d07cd5`, runs `…013402Z` to `…013410Z`):
+
+| `max_tokens` / `per_kind_limit` | Package (est.) | Share of corpus | Recall | Precision |
+|---|---|---|---|---|
+| 4000 / 3 (default) | ~3.1k | 2% | 0.56 | 0.28 |
+| 4000 / 6 | ~4.5k | 3% | 0.65 | 0.21 |
+| 8000 / 6 | ~6.0k | 4% | 0.70 | 0.18 |
+| 16000 / 10 | ~9.6k | 7% | 0.73 | 0.12 |
+| 200000 / 50 | ~32k | 23% | 0.85 | 0.04 |
+
+What this says:
+
+1. **Ranking is the main problem.** Most needed chunks *are* found by the
+   keyword search but rank too low and are cut by the budget or slot limit.
+   Recall rises from 0.56 to 0.73 when the package grows 3×.
+2. **Reach is a smaller, harder problem.** About 15% of needed chunks are
+   still not reached when a quarter of the corpus is handed over (up to 50
+   items per kind). Mostly the task's words and the code's words don't
+   overlap; some may just rank below 50th.
+3. **"Not found" cannot be detected by "zero matches".** In a large corpus
+   almost every query matches *something* of every kind, so the two
+   missing-information tasks got loosely related results instead of an
+   honest "nothing about this".
+4. **Bug found:** the token budget counts item text only, so the rendered
+   package can exceed `max_tokens` (e.g. ~4.5k against a 4k budget).
+
+Threats: one model family wrote the corpus, tasks and labels (though as
+separate agents with separate inputs); 20 tasks is a small sample; labels
+reflect one reader's judgement of "needed".
