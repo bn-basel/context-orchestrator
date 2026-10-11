@@ -233,7 +233,7 @@ def _loop_probe(args: argparse.Namespace) -> int:
     print(f"response id: {turn.id}\nstop_reason: {turn.stop_reason}")
     print(f"content: {turn.content}\nusage: {json.dumps(turn.usage)}")
     print(f"estimated cost: {own_loop.estimate_cost(args.model, turn.usage)}")
-    print(f"measured cost: {own_loop.openrouter_generation_cost(turn.id or '')}")
+    print(f"measured cost (OpenRouter's charge in the usage): {turn.usage.get('cost')}")
     return 0
 
 

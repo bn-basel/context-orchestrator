@@ -170,6 +170,19 @@ def test_cost_estimate_uses_the_prompt_size_rate_card() -> None:
     assert own_loop.estimate_cost("anthropic/unknown", small) is None
 
 
+def test_charge_reported_in_the_usage_is_the_measured_cost() -> None:
+    def model(**kwargs) -> Turn:
+        usage = {**USAGE, "cost": 0.0002}
+        return Turn("msg_1", "end_turn", [{"type": "text", "text": "done"}], usage)
+
+    project = (HALLPASS.parent / "../corpora/hallpass").resolve()
+    result = run_loop(model, LoopConfig(), "L", "t", LocalTools(project))
+    usage = own_loop.summarise_usage(result["calls"], LoopConfig().model)
+    assert usage["measured_cost_usd"] == {
+        "value": 0.0002, "kind": "measured", "method": "OpenRouter's reported charge per call"
+    }  # fmt: skip
+
+
 def test_refusal_ends_the_run_with_an_error() -> None:
     def model(**kwargs) -> Turn:
         return Turn("gen-1", "refusal", [], dict(USAGE))

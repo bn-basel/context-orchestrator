@@ -547,9 +547,12 @@ def run_loop(
         )
         cost = estimate_cost(config.model, turn.usage)
         run_cost += cost or 0.0
+        charged = turn.usage.get("cost")  # OpenRouter reports its charge in the usage
         calls.append(
             {"id": turn.id, "stop_reason": turn.stop_reason, "usage": turn.usage,
-             "estimated_cost_usd": cost, "wall_ms": round((time.perf_counter() - t0) * 1000)}
+             "estimated_cost_usd": cost,
+             "measured_cost_usd": float(charged) if charged is not None else None,
+             "wall_ms": round((time.perf_counter() - t0) * 1000)}
         )  # fmt: skip
         messages.append({"role": "assistant", "content": turn.content})
         uses = [b for b in turn.content if b["type"] == "tool_use"]
@@ -741,9 +744,10 @@ def run_experiment(
             result = run_loop(model, config, job.arm, PROMPT.format(task=job.task.task),
                               tools, spent)  # fmt: skip
             wall_ms = round((time.perf_counter() - t0) * 1000)
-            if cost_lookup:
+            if cost_lookup:  # only for calls whose response carried no charge
                 for call in result["calls"]:
-                    call["measured_cost_usd"] = cost_lookup(call["id"]) if call["id"] else None
+                    if call["measured_cost_usd"] is None and call["id"]:
+                        call["measured_cost_usd"] = cost_lookup(call["id"])
             usage = summarise_usage(result["calls"], config.model)
             spent += usage["estimated_cost_usd"]["value"] or 0.0
             name = f"{job.task.id}-{job.arm}-{job.role}-{job.rep}"
