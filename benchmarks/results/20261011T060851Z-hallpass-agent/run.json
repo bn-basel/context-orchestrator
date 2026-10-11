@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "run_id": "20261011T060851Z-hallpass-agent",
+  "started_at": "2026-10-11T06:08:51+00:00",
+  "git": {
+    "commit": "b67570b4e2caffbfc3b275b33d0d4d0a11d5a608",
+    "dirty": false
+  },
+  "claude_code_version": "2.1.292 (Claude Code)",
+  "config": {
+    "model": "haiku",
+    "strategies": [
+      "E"
+    ],
+    "repetitions": 2,
+    "timeout_s": 900,
+    "max_budget_usd": 1.0,
+    "service_args": [
+      "--retrieval",
+      "hybrid",
+      "--hops",
+      "2"
+    ],
+    "workers": 2,
+    "effort": null,
+    "compact_service_args": [
+      "--detail",
+      "compact",
+      "--per-kind-limit",
+      "8"
+    ],
+    "seed": 20261011
+  },
+  "suite": {
+    "name": "hallpass",
+    "sha256": "9c6bc7e5af815474ee007dede934579502724a04a3604c05b516982cc24235d7"
+  },
+  "rubrics_sha256": "34915db21c098e97fb885d9e5601897a837de26188c75ee48d92d45ab834084b",
+  "tasks": [
+    "H01",
+    "H06",
+    "H11",
+    "H13",
+    "H15"
+  ],
+  "prompt_template": "You are an engineer on the Hallpass project, whose code and docs are in the current directory.\n\nTask: {task}\n\nWrite a short implementation plan (at most 300 words): which files and functions to change, which project decisions, constraints and known issues apply, and the main risks. Name file paths. Do not modify any files. If something the task asks about does not exist in the project, say so plainly.",
+  "system_prompts": {
+    "B": "A context service is available as the tool request_context. It returns relevant project knowledge (decisions, schema, conventions, known issues, code, tests) with file paths and trust labels. Use it to find what you need; you may call it several times with follow-up questions, and read files directly when you need more.",
+    "B2": "A context service is available as the tool request_context. It returns relevant project knowledge (decisions, schema, conventions, known issues, code, tests) with file paths and trust labels. Use it to find what you need; you may call it several times with follow-up questions, and read files directly when you need more. Start by calling request_context with the task before you read any files.",
+    "B2C": "A context service is available as the tool request_context. It returns relevant project knowledge (decisions, schema, conventions, known issues, code, tests) with file paths and trust labels. Use it to find what you need; you may call it several times with follow-up questions, and read files directly when you need more. Start by calling request_context with the task before you read any files. Its results show the opening lines of each relevant place with the file and line range; read the files you need in full.",
+    "B2V": "A context service is available as the tool request_context. It returns relevant project knowledge (decisions, schema, conventions, known issues, code, tests) with file paths and trust labels. Use it to find what you need; you may call it several times with follow-up questions, and read files directly when you need more. Start by calling request_context with the task before you read any files. Its excerpts are verbatim with exact file paths and line ranges: rely on them, and open a file only for parts that were not shown."
+  },
+  "summary": {
+    "E": {
+      "name": "reader sub-agent does all file reading",
+      "runs": 10,
+      "failed_runs": 0,
+      "mean_score": 0.78,
+      "successes": 3,
+      "must_not_violations": 0,
+      "median_total_input_tokens": 351180.0,
+      "median_uncached_input_tokens": 5852.0,
+      "median_cache_read_tokens": 285090.5,
+      "median_cache_write_tokens": 39269.0,
+      "median_output_tokens": 7700.0,
+      "median_duration_ms": 90797.5,
+      "total_api_equivalent_cost_usd": 1.3702,
+      "usage_unavailable_runs": 0,
+      "median_tool_calls": 30.5,
+      "median_service_calls": 0.0
+    }
+  },
+  "full_context_chars": 568599,
+  "finished_at": "2026-10-11T06:16:42+00:00"
+}

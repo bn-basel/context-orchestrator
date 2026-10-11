@@ -484,3 +484,40 @@ What this says:
    point, so frequent pruning trades cheap cache reads for cache writes); and
    pruning cannot be applied inside the Claude Code CLI used for these runs.
    Testing it needs our own agent loop.
+
+### Phase 3d agent check: a reader sub-agent does all file reading (run `20261011T060851Z-hallpass-agent`)
+
+Strategy E: the main agent gets the Agent tool and a `reader` sub-agent
+(same model, Read/Grep/Glob, findings capped at ~300 words) and is told to
+delegate every lookup, in the foreground. Haiku 4.5, the same 5 tasks × 2
+runs = 10 runs, $1.37 API-equivalent (plus ~$0.15 for three set-up probes).
+Baselines are the 300-run benchmark's C and B2 runs on the same tasks (same
+CLI version 2.1.292, model, prompt and rubrics; run on a different hour).
+
+| Same 5 tasks | Mean score | Fully correct | Median input tokens | Cost per run |
+|---|---|---|---|---|
+| C file tools only (15 runs) | 0.92 | 9/15 | 281k | $0.093 |
+| B2 context service (15 runs) | 0.92 | 10/15 | 216k | $0.080 |
+| **E reader sub-agent (10 runs)** | **0.78** | **3/10** | **351k** | **$0.137** |
+
+E used more input tokens than C on **every one** of the 5 tasks (×1.09 to
+×1.70, ×1.27 overall; cost ×1.44); against B2 ×1.35 tokens, ×1.70 cost.
+
+**Isolation worked; the strategy didn't.** The main agent never read a file
+itself and its own context stayed small (~44–63k of each run's ~280–420k
+input tokens). But:
+
+1. **Each reader call starts from scratch**: a fresh sub-agent, its own
+   system prompt, re-exploring files. The cost moved out of the main agent
+   and grew.
+2. **Summaries lose what the plan needs.** Working from ~300-word findings,
+   the main agent produced far fewer fully correct plans. In a set-up probe
+   the hand-back even contained an invented file name.
+
+Set-up findings: in Claude Code 2.1.292, sub-agents run in the background
+unless told otherwise, and a custom sub-agent's tools must also be enabled
+for the session or it refuses to start.
+
+Not scaled up. This matches the argument behind Meta's Context Language
+Models: replacing exact context with summaries loses information, while
+editing context in place (removing what's stale) keeps it.

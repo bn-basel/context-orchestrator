@@ -3,7 +3,7 @@
 Read this first when resuming work in a new session. Keep it current: update
 it at the end of every milestone, and before a session's context runs out.
 
-**Last updated:** 2026-10-11, phase 3c what-if estimates done; owner choosing the next direction.
+**Last updated:** 2026-10-11, phase 3d (reader sub-agent) measured: worse; next direction open.
 
 ## Resume prompt
 
@@ -60,6 +60,10 @@ and harness caveats). Pruning can't be done inside the Claude Code CLI; it
 needs our own agent loop (Claude API context editing `clear_tool_uses`, or a
 custom harness). Related research: Meta's Context Language Models (agents
 edit their own context), CMU/Meta Agentic Context Management.
+
+Phase 3d (benchmarks/README.md): a reader sub-agent doing all reading (strategy
+E) was worse on every task: x1.27 tokens, x1.44 cost vs C, score 0.78 vs 0.92.
+Sub-agents start from scratch per call and their summaries lose detail.
 
 Candidate next steps:
 - **Better follow-up answers** from the service (an agent asking about a
