@@ -54,7 +54,7 @@ class JsonlTelemetry:
         if not self.record_task_text:
             event = {k: v for k, v in event.items() if k not in _SENSITIVE_KEYS}
         try:
-            with self.path.open("a", encoding="utf-8") as fh:
+            with self.path.open("a", encoding="utf-8", newline="\n") as fh:
                 fh.write(json.dumps(event, sort_keys=True, ensure_ascii=False) + "\n")
         except OSError:
             # Telemetry must never break a context request.

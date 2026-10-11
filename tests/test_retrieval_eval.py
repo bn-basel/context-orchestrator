@@ -175,3 +175,9 @@ def test_cli_eval_retrieval(tmp_path: Path, capsys: pytest.CaptureFixture[str]) 
     assert "# Retrieval evaluation: sample_project" in out
     assert "## gate1:" in out
     assert len(list(tmp_path.iterdir())) == 1
+
+
+def test_run_files_use_lf_line_endings(tmp_path: Path) -> None:
+    run = run_suite(load_suite(COMMITTED_SUITE), tmp_path)
+    for name in ("run.json", "results.jsonl", "summary.md", "telemetry.jsonl"):
+        assert b"\r\n" not in (run.run_dir / name).read_bytes(), name

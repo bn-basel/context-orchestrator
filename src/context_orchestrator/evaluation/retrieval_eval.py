@@ -411,10 +411,13 @@ def run_suite(
         "summary": summary,
         "gate": gate_result,
     }
+    # newline="\n": raw files are byte-identical on every OS.
     (run_dir / "run.json").write_text(
-        json.dumps(run_meta, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+        json.dumps(run_meta, indent=2, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n"
     )
-    (run_dir / "summary.md").write_text(render_summary(run_meta, results), encoding="utf-8")
+    (run_dir / "summary.md").write_text(
+        render_summary(run_meta, results), encoding="utf-8", newline="\n"
+    )
     return RunResult(run_dir, summary, gate_result, results)
 
 
