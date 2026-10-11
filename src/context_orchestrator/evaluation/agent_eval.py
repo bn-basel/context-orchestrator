@@ -42,7 +42,7 @@ from context_orchestrator.evaluation.claude_cli import parse_claude_cli_result
 from context_orchestrator.evaluation.retrieval_eval import EvalTask, TaskSuite, _git_state
 from context_orchestrator.memory.loader import discover_files
 
-STRATEGIES = ("A", "B", "B2", "B2C", "B2V", "C", "D")
+STRATEGIES = ("A", "B", "B2", "B2C", "B2V", "C", "D", "E")
 SERVICE_STRATEGIES = ("B", "B2", "B2C", "B2V")
 STRATEGY_NAMES = {
     "A": "full context",
@@ -52,9 +52,11 @@ STRATEGY_NAMES = {
     "B2V": "as B2, told to rely on the verbatim excerpts",
     "C": "no context (file tools only)",
     "D": "oracle (labelled ranges only)",
+    "E": "reader sub-agent does all file reading",
 }
 FILE_TOOLS = ("Read", "Grep", "Glob")
 MCP_TOOL = "mcp__ctxo__request_context"
+AGENT_TOOL = "Agent"
 
 PROMPT = """You are an engineer on the Hallpass project, whose code and docs are in the current \
 directory.
@@ -103,6 +105,29 @@ SYSTEM_B2V = SYSTEM_B2 + (
     " Its excerpts are verbatim with exact file paths and line ranges: rely on them, and"
     " open a file only for parts that were not shown."
 )
+
+
+SYSTEM_E = (
+    'You have a sub-agent called reader (Agent tool, subagent_type "reader") that reads the '
+    "project's files for you and returns short findings with file paths and line ranges. Do "
+    "not read, grep or glob files yourself and do not use other sub-agents: ask the reader "
+    "specific questions instead, as often as you need. Always call it in the foreground "
+    "(run_in_background: false) and wait for its findings."
+)
+# The reader's file reading happens in its own context; only its short findings reach the
+# main agent. Same model as the main agent so the comparison isolates the context effect.
+READER_AGENT = {
+    "reader": {
+        "description": "Reads the project's files to answer specific questions. Use it for "
+        "every lookup in the codebase.",
+        "prompt": "You read files in the current project to answer the question you are given. "
+        "Use Grep and Glob to locate, Read to confirm. Reply with short findings only: for each "
+        "relevant place give the file path, line range and the few key lines quoted verbatim. "
+        "No more than 300 words. Say plainly if something does not exist.",
+        "tools": ["Read", "Grep", "Glob"],
+        "model": "haiku",
+    }
+}
 
 
 # -- context for each strategy -----------------------------------------------------------
@@ -195,6 +220,9 @@ def _sanitise(text: str, replacements: dict[str, str]) -> str:
 def parse_stream(lines: list[str]) -> dict[str, Any]:
     events = [json.loads(line) for line in lines if line.strip().startswith("{")]
     tool_calls: list[str] = []
+    main_tool_calls: list[str] = []
+    subagent_result_chars = 0
+    subagent_ids: set[str] = set()
     service_result_chars = 0
     service_ids: set[str] = set()
     for event in events:
@@ -204,8 +232,15 @@ def parse_stream(lines: list[str]) -> dict[str, Any]:
         for block in content:
             if block.get("type") == "tool_use":
                 tool_calls.append(block.get("name", "?"))
+                if not event.get("parent_tool_use_id"):
+                    main_tool_calls.append(block.get("name", "?"))
+                    if block.get("name") == AGENT_TOOL:
+                        subagent_ids.add(block.get("id"))
                 if block.get("name") == MCP_TOOL:
                     service_ids.add(block.get("id"))
+            elif block.get("type") == "tool_result" and block.get("tool_use_id") in subagent_ids:
+                body = block.get("content")
+                subagent_result_chars += len(body if isinstance(body, str) else json.dumps(body))
             elif block.get("type") == "tool_result" and block.get("tool_use_id") in service_ids:
                 body = block.get("content")
                 text = body if isinstance(body, str) else json.dumps(body)
@@ -217,18 +252,27 @@ def parse_stream(lines: list[str]) -> dict[str, Any]:
         "tool_calls": tool_calls,
         "service_calls": tool_calls.count(MCP_TOOL),
         "service_result_chars": service_result_chars,
+        "main_tool_calls": main_tool_calls,
+        "subagent_calls": main_tool_calls.count(AGENT_TOOL),
+        "subagent_result_chars": subagent_result_chars,
     }
 
 
 def build_command(
-    config: AgentConfig, strategy: str, prompt: str, system_file: Path | None, mcp_file: Path | None
+    config: AgentConfig,
+    strategy: str,
+    prompt: str,
+    system_file: Path | None,
+    mcp_file: Path | None,
+    agents_file: Path | None = None,
 ) -> list[str]:
-    tools = list(FILE_TOOLS) + ([MCP_TOOL] if strategy in SERVICE_STRATEGIES else [])
+    builtin = list(FILE_TOOLS) + ([AGENT_TOOL] if strategy == "E" else [])
+    tools = builtin + ([MCP_TOOL] if strategy in SERVICE_STRATEGIES else [])
     cmd = [
         "claude", "-p", prompt,
         "--model", config.model,
         "--output-format", "stream-json", "--verbose",
-        "--tools", ",".join(FILE_TOOLS),
+        "--tools", ",".join(builtin),
         "--allowedTools", " ".join(tools),
         "--disable-slash-commands",
         "--no-session-persistence",
@@ -243,6 +287,8 @@ def build_command(
         cmd += ["--mcp-config", str(mcp_file)]
     if system_file is not None:
         cmd += ["--append-system-prompt-file", str(system_file)]
+    if strategy == "E" and agents_file is not None:
+        cmd += ["--agents", str(agents_file)]
     return cmd
 
 
@@ -331,10 +377,13 @@ def run_agent_suite(
         ("system_b2.md", SYSTEM_B2),
         ("system_b2c.md", SYSTEM_B2C),
         ("system_b2v.md", SYSTEM_B2V),
+        ("system_e.md", SYSTEM_E),
     ):
         (ws / name).write_text(text, encoding="utf-8")
     for task in tasks:
         (ws / f"oracle_{task.id}.md").write_text(oracle_context(project, task), encoding="utf-8")
+    agents_file = ws / "agents.json"
+    agents_file.write_text(json.dumps(READER_AGENT), encoding="utf-8")
     replacements = {str(ws): "<workspace>", str(Path.home()): "<home>"}
 
     records_path = run_dir / "runs.jsonl"
@@ -357,10 +406,13 @@ def run_agent_suite(
             "B2": ws / "system_b2.md",
             "B2C": ws / "system_b2c.md",
             "B2V": ws / "system_b2v.md",
+            "E": ws / "system_e.md",
             "D": ws / f"oracle_{task.id}.md",
         }.get(strategy)
         mcp = {"B": mcp_file, "B2": mcp_file, "B2C": mcp_compact, "B2V": mcp_file}.get(strategy)
-        cmd = build_command(config, strategy, PROMPT.format(task=task.task), system_file, mcp)
+        cmd = build_command(
+            config, strategy, PROMPT.format(task=task.task), system_file, mcp, agents_file
+        )
         t0 = time.perf_counter()
         try:
             proc = runner(
@@ -406,6 +458,9 @@ def run_agent_suite(
             "tool_calls": parsed["tool_calls"],
             "service_calls": parsed["service_calls"],
             "service_result_chars": parsed["service_result_chars"],
+            "main_tool_calls": parsed["main_tool_calls"],
+            "subagent_calls": parsed["subagent_calls"],
+            "subagent_result_chars": parsed["subagent_result_chars"],
             "grade": grade(parsed["plan"], rubric_data["rubrics"][task.id]),
             "plan": _sanitise(parsed["plan"], replacements),
         }

@@ -268,3 +268,31 @@ def test_b2v_uses_full_service_and_its_own_instruction(tmp_path: Path) -> None:
     assert cmd[cmd.index("--mcp-config") + 1].endswith("mcp.json")
     text = (tmp_path / "work" / run_dir.name / "system_b2v.md").read_text("utf-8")
     assert text.startswith("A context service") and "rely on them" in text
+
+
+def test_strategy_e_adds_the_reader_sub_agent(tmp_path: Path) -> None:
+    config = AgentConfig()
+    e = build_command(config, "E", "p", tmp_path / "e.md", None, tmp_path / "agents.json")
+    c = build_command(config, "C", "p", None, None, tmp_path / "agents.json")
+    assert e[e.index("--tools") + 1] == "Read,Grep,Glob,Agent"
+    assert e[e.index("--allowedTools") + 1] == "Read Grep Glob Agent"
+    assert e[e.index("--agents") + 1].endswith("agents.json")
+    assert "--agents" not in c and c[c.index("--tools") + 1] == "Read,Grep,Glob"
+
+
+def test_parse_stream_separates_main_and_sub_agent_calls() -> None:
+    events = [
+        {"type": "assistant", "message": {"content": [
+            {"type": "tool_use", "id": "a1", "name": "Agent", "input": {}}]}},
+        {"type": "assistant", "parent_tool_use_id": "a1", "message": {"content": [
+            {"type": "tool_use", "id": "r1", "name": "Read", "input": {}}]}},
+        {"type": "user", "parent_tool_use_id": "a1", "message": {"content": [
+            {"type": "tool_result", "tool_use_id": "r1", "content": "x" * 500}]}},
+        {"type": "user", "message": {"content": [
+            {"type": "tool_result", "tool_use_id": "a1", "content": "findings" * 10}]}},
+        {"type": "result", "result": "plan"},
+    ]  # fmt: skip
+    parsed = parse_stream([json.dumps(e) for e in events])
+    assert parsed["tool_calls"] == ["Agent", "Read"]
+    assert parsed["main_tool_calls"] == ["Agent"]
+    assert parsed["subagent_calls"] == 1 and parsed["subagent_result_chars"] == 80
