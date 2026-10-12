@@ -4,6 +4,25 @@ An experiment in making AI coding agents cheaper without making them worse:
 a small context service for agents, a benchmark harness, and every raw
 result from 460 graded agent runs.
 
+## Key result
+
+> **Turning the model's thinking effort down from medium to low cut token use
+> by a third (−33%) and cost by 29%, with no loss in quality.** It was cheaper
+> in every one of the 10 paired runs.
+
+Three changes cut cost in our tests:
+
+| Change | Tokens | Cost | Quality | How to apply it |
+|---|---|---|---|---|
+| **Lower the thinking effort** | **−33%** | **−29%** | same | Set effort to `low`: `output_config.effort` in the Claude API, `--effort low` in Claude Code |
+| **Make the agent ask for context first** | −22% | −21% | same | Give it a context tool (like this repo's) and tell it to call it before reading files. Offering the tool alone didn't help |
+| **Let agents trust reviewed memory** | −22% | −18% | slightly less thorough | Save findings anchored to file lines, review them, and tell agents reviewed findings need no re-checking |
+
+Each change was measured separately against the same agent without it, on
+one project with small models (details below). They were **not tested
+together**, so don't add the percentages up. Token figures are input tokens
+(for effort, output tokens fell by 33% too).
+
 ## TL;DR
 
 - **Problem:** coding agents spend most of their budget reading and
