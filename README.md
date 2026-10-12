@@ -1,122 +1,112 @@
 # Context Orchestrator
 
-Does a coding agent work more cheaply if it **asks for the project context it
-needs** instead of exploring the files itself, or being handed everything?
-This repository holds a small context service built to test that, the
-benchmark harness, and every raw result.
+An experiment in making AI coding agents cheaper without making them worse:
+a small context service for agents, a benchmark harness, and every raw
+result from 460 graded agent runs.
 
 ## TL;DR
 
-- **The question:** coding agents burn most of their tokens re-reading
-  project context. Can a shared context service, plus ideas like pruning
-  and memory, cut that cost without hurting the work?
-- **What we did:** 460 agent runs on a synthetic ~140k-token project with 20
-  graded tasks: 300 in Claude Code (Haiku 4.5), and 160 in our own agent loop
-  (Haiku 5.5, $0.91 actually charged), each test planned before it ran.
+- **Problem:** coding agents spend most of their budget reading and
+  re-reading project context.
+- **What we did:** built a context service and tested nine ideas for cutting
+  that cost, each against the same agent without the idea, on 20 realistic
+  tasks with answers graded by fixed rubrics. Every test was planned before
+  it ran.
 - **What worked:**
-  - asking the context service first: **~21% cheaper** (just offering it
-    didn't help: agents often skipped it);
-  - running the model at **low effort** (less thinking): **29% cheaper**,
-    cheaper in 10 of 10 pairs, no quality loss;
-  - memory from earlier tasks, **reviewed and trusted**: **18% cheaper**,
-    with a small, possibly noisy, quality dip.
-- **What didn't:** the whole project in the prompt **doubled** the cost.
-  **Pruning** old tool output, the in-place editing idea behind Meta's
-  *Context Language Models* and the Claude API's context editing, looked like
-  a 33–53% saving in replays but cost **17% more** when run on a newer
-  model. **Unreviewed memory** saved nothing, and outline-first file reads
-  were inconclusive.
-- **The lesson:** agents re-read what they're given unless they're allowed
-  to trust it, so the bottleneck is trust, not retrieval. And measure,
-  don't extrapolate: savings estimated from one model's recordings didn't
-  survive a newer model.
+  - **Asking a context service first:** 21% cheaper, same quality. Only when
+    the agent was told to ask: when the service was merely offered, agents
+    often skipped it.
+  - **Thinking less** (the model's low-effort setting): 29% cheaper, same
+    quality.
+  - **Reviewed memory from earlier tasks**, which agents were told they could
+    trust: 18% cheaper, slightly less thorough.
+- **What didn't:**
+  - **The whole project in the prompt:** doubled the cost.
+  - **Pruning old context as the agent works,** the idea behind Meta's
+    *Context Language Models*: looked like a 33–53% saving on paper, cost
+    more in practice.
+  - **Unreviewed memory:** saved nothing, because agents re-checked every
+    finding.
+- **The lessons:**
+  - **Agents don't trust what they're handed,** so they read it again.
+    Trust, not retrieval, is the bottleneck.
+  - **Look at where the money goes before optimising.**
+  - **Measure, don't extrapolate.**
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/img/results-dark.svg">
-  <img alt="Cost and plan score relative to a baseline: five context strategies from 300 Claude Code runs (Haiku 4.5), and five cost levers (low effort, trusted memory, outline reads, unreviewed memory, pruning) from 160 runs of our own agent loop (Haiku 5.5)" src="docs/img/results-light.svg">
+  <img alt="Bar chart of the change in cost for nine ideas, each against the same agent without it. Worked: ask a context service first (-21%), think less (-29%), reviewed memory (-18%). Did not: offering the service (-7%, no clear saving), the whole project in the prompt (+97%), outline-first reads (-9%, inconclusive), unreviewed memory (-2%), pruning (+17%). Best case, handing over exactly the right pieces: -43%." src="docs/img/results-light.svg">
 </picture>
 
 ## What we tested
 
-- **A synthetic project.** "Hallpass" is a fictional council booking system:
-  ~140k tokens of code, tests, SQL migrations, design decisions and known
-  bugs, with outdated and superseded documents deliberately mixed in.
-- **20 realistic tasks**, each with a grading rubric written before any run.
-- **Five ways of giving a coding agent context** (Claude Code, Haiku 4.5):
+- **A realistic project:** a fictional council booking system, about 140k
+  tokens of code, tests, database migrations, design decisions and known
+  bugs. Outdated and contradictory documents are mixed in on purpose.
+- **20 tasks** like real tickets, each graded against a rubric written
+  before any run.
+- **Ways of giving the agent context:**
   - the whole project in the prompt;
-  - letting the agent explore the files alone;
-  - our context service as a tool, merely offered;
-  - the same service, with the agent told to use it first;
-  - an "oracle" holding exactly the needed pieces.
-- **The main benchmark:** 300 runs (20 tasks × 5 strategies × 3), compared
-  per task with 95% confidence intervals.
-- **Smaller follow-up checks** (10 runs each): compact excerpts, "trust the
-  excerpts" instructions, and a sub-agent that does all the reading.
-- **Replays of the recordings** to see where the tokens actually go.
-- **Five cost levers in our own agent loop** (Haiku 5.5 via OpenRouter, 160
-  runs, $0.91 actually charged):
-  - **pruning**: removing old tool output from the agent's context as it
-    works;
-  - **memory across tasks**: agents save findings, each anchored to the file
-    lines that prove it, so a later task in the same area starts ahead;
-    tested unreviewed, and reviewed with agents told to trust it;
-  - **outline-first file reads**: long files show an outline first;
-  - **low effort**: less thinking per step.
+  - letting it explore alone;
+  - our context service, offered or required first;
+  - an ideal "exactly the right pieces" baseline.
+- **Ways of changing how the agent works:**
+  - pruning old context as it goes;
+  - showing long files as an outline first;
+  - thinking less;
+  - memory of earlier tasks, unreviewed and reviewed.
+- **Setup:**
+  - 300 runs in Claude Code with Claude Haiku 4.5;
+  - 160 runs in a small agent loop of our own with Claude Haiku 5.5, $0.91
+    actually charged.
+  - Every comparison is paired by task with 95% intervals.
 
 ## What we found
 
-- **The context service cut cost by about a fifth** (0.79×) with no
-  detectable change in plan quality, **but only when the agent was told to use
-  it.** Merely offered, it was skipped in 18 of 60 runs and the saving
-  disappeared into noise.
-- **Putting the whole project in the prompt doubled the cost** for, at most,
-  a small quality gain. The project is re-sent on every turn.
-- **Pruning old tool output didn't save money** (cost ×1.17 over 5 pairs),
-  although replaying the Claude Code recordings had estimated −33% to −53%.
-  Haiku 5.5 works in few, wide steps, so little old output is re-sent;
-  pruned agents went back to re-read what was removed; and every edit forces
-  part of the cached context to be written again.
-- **Unreviewed memory across tasks didn't save money** (cost ×0.98, 95%
-  interval 0.90–1.09, over 20 pairs). The findings were accurate and reached
-  the next agent, but it **opened 30 of the 36 files they cited anyway**.
-- **Reviewed memory that agents may trust did** (cost ×0.82, 0.74–0.92, 20
-  pairs). Told that verified findings were checked against their lines,
-  agents re-opened 35% of the cited files instead of 59%. Plans missed
-  slightly more rubric points (score −0.035), within the margin set in
-  advance. The findings were reviewed by Claude, not by a person.
-- **Low effort cut cost by 29%** (×0.71, 0.65–0.77; 10 of 10 pairs) with no
-  quality loss: about two-thirds less thinking, and fewer, smaller steps.
-- **Outline-first file reads were inconclusive** (×0.91, 0.83–1.00): Haiku
-  5.5 rarely reads long files whole anyway.
-- **Agents re-read what they've already been given.** With the service, 35%
-  of what they read had already been served; with memory, most cited files
-  were opened again. Better search scores and good findings didn't change
-  that.
-- **A sub-agent doing all the reading was worse:** more tokens on every task,
-  lower quality. Each call starts from scratch, and its summaries lose detail.
-- **Single runs are noisy** (about ×1.7 in tokens). Small checks can only
-  detect large effects.
+- **Asking a context service first saved 21%** with no change in quality.
+  Merely offering the service saved nothing clear: agents skipped it in 18
+  of 60 runs.
+- **Thinking less saved 29%** with no change in quality. The agent thought
+  about two-thirds less and also took fewer, smaller steps. All 10 pairs
+  were cheaper.
+- **Reviewed memory saved 18%.** Findings from earlier tasks were checked
+  against the code and served as verified, and agents were told they could
+  rely on them. They then re-opened 35% of the files the findings cited,
+  instead of 59%. They missed slightly more rubric points, within the margin
+  set in advance. The review was done by Claude, not by a person.
+- **Unreviewed memory saved nothing.** The findings were accurate and
+  reached the agent, but it checked them by opening the files anyway.
+- **The whole project in the prompt doubled the cost**, because it is sent
+  again on every step.
+- **Pruning old context didn't pay** (+17%, not significant). Replays of the
+  first runs predicted a 33–53% saving. On the newer model the agent works
+  in a few wide steps, so little old context is re-sent. It went back for
+  what was removed, and each edit made part of the cache be written again.
+- **Outline-first reads were inconclusive** (−9%): the agent rarely reads
+  long files whole anyway.
+- **A helper agent doing all the reading was worse:** more cost, lower
+  quality. Its summaries lose the details the plan needs.
+- **Single runs are noisy** (token use varies by about 1.7× between runs of
+  the same task), so small tests only catch
+  large effects.
 
 ## What we think
 
-- **Asking for context helps, when the agent actually asks.** The one clear
-  saving came from the service used first; offering it was not enough.
-- **Estimates from recordings don't transfer across models.** The biggest
-  saving on paper (pruning) vanished on a newer model that works
-  differently. Measure before building on a replay.
-- **The bottleneck is trust, not retrieval.** Agents verify what they're
-  handed by reading the source again. Unreviewed memory saved nothing; the
-  same findings, reviewed and trusted, saved 18%. A memory is only worth
-  what its review process makes it worth, and trusting it trades a little
-  thoroughness for cost.
-- **Look at where the money goes before optimising.** On Haiku 5.5, 46% of
-  cost was writing new context to the cache and 38% was output. Pruning old
-  context targeted the remaining 16%, which is why it couldn't pay; turning
-  down thinking targeted output and gave the biggest saving.
-- **The evidence is narrow:** one synthetic project, two small models,
-  rubric-graded plans rather than executed code, and small samples for the
-  newer checks. Claude Code figures are list-price estimates, not
-  subscription charges. Treat the numbers as careful first measurements.
+- **Trust is the bottleneck, not retrieval.** Agents verify what they're
+  given by reading the source again. Good context and accurate memory only
+  save money once the agent may rely on them, which makes reviewing what
+  goes into memory the real work.
+- **Look at where the money goes first.** For the newer model, 46% of cost
+  was storing newly read context, 38% was output and 16% was re-sending old
+  context. Pruning could only touch the 16%; thinking less cut the output.
+- **Measure, don't extrapolate.** The biggest saving on paper vanished when
+  the model changed.
+- **The evidence is narrow:**
+  - one synthetic project and two small models;
+  - graded plans rather than executed code;
+  - small samples for the later tests.
+
+  Treat the numbers as careful first measurements, not general laws.
 
 The full write-up is in [docs/findings.md](docs/findings.md); every run with
 its caveats is in [benchmarks/README.md](benchmarks/README.md).

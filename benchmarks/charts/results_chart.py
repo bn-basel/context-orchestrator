@@ -2,9 +2,10 @@
 
 Usage: uv run python benchmarks/charts/results_chart.py
 
-Two panels sharing the rows (never a dual axis): cost relative to a baseline,
-and the change in plan score against it, each as a dot with its 95% bootstrap
-interval. Two groups of rows, each against its own baseline:
+One bar per idea: the change in cost against the same agent without it, with
+a plain verdict derived from the 95% bootstrap interval and the score change
+(the same rules as the write-up). Ideas that work are highlighted. Two groups,
+each against its own baseline:
 
 * Claude Code + Haiku 4.5 (phase 2, 300 runs): each strategy against the
   agent exploring alone; intervals over tasks, from the run's analysis.json.
@@ -32,15 +33,6 @@ READS = [RESULTS / "20261012T022153Z-loop-prune"]  # L, LC (outline reads), LE (
 TRUST = [RESULTS / "20261012T023255Z-loop-trust", RESULTS / "20261012T024550Z-loop-trust"]
 RESAMPLES, SEED = 10_000, 20261011
 
-THEMES = {
-    "light": {"text": "#0b0b0b", "muted": "#52514e", "grid": "#d9d8d4",
-              "mark": "#2a78d6", "base": "#8b8a86"},
-    "dark": {"text": "#ffffff", "muted": "#c3c2b7", "grid": "#3a3a37",
-             "mark": "#3987e5", "base": "#8b8a86"},
-}  # fmt: skip
-
-W, ROW_H, HEAD_H, TOP, LEFT = 900, 42, 40, 96, 262
-PANEL_W, GAP = 270, 70
 FONT = 'font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif"'
 
 
@@ -112,128 +104,115 @@ def collect() -> dict:
     }  # fmt: skip
 
 
-def layout(d: dict) -> list[tuple]:
-    """Rows top to bottom: ("head", text) or ("row", key, label); key None = baseline."""
-    return [
-        ("head", f"Claude Code, Haiku 4.5 · {d['phase2_runs']} runs · vs. the agent "
-                 "exploring alone"),
-        ("row", "A", "Whole project in the prompt"),
-        ("row", None, "Agent explores alone (baseline)"),
-        ("row", "B", "Context service, offered"),
-        ("row", "B2", "Context service, used first"),
-        ("row", "D", "Oracle: exactly the needed pieces"),
-        ("head", f"Own agent loop, Haiku 5.5 · {d['loop_runs']} runs · vs. the same loop "
-                 "without it"),
-        *[("row", key, f"{label} ({d['values'][key]['pairs']} pairs)") for key, label in (
-            ("effort", "Low effort, less thinking"),
-            ("trust", "Trusted, reviewed memory"),
-            ("outline", "Outline-first file reads"),
-            ("memory", "Memory, unreviewed"),
-            ("prune", "Pruning old tool output"),
-        )],
-    ]  # fmt: skip
+THEMES = {
+    "light": {"text": "#0b0b0b", "muted": "#52514e", "grid": "#d9d8d4",
+              "good": "#2a78d6", "other": "#b9b8b3", "zero": "#52514e"},
+    "dark": {"text": "#ffffff", "muted": "#c3c2b7", "grid": "#3a3a37",
+             "good": "#3987e5", "other": "#5f5e5a", "zero": "#c3c2b7"},
+}  # fmt: skip
+
+LABEL_W, BAR_X0, BAR_W, ROW, GROUP = 300, 330, 300, 40, 46
+LO, HI = -0.5, 1.0  # cost change shown from -50% to +100%
 
 
-# -- drawing ---------------------------------------------------------------------------------
+def verdict(key: str, v: dict) -> tuple[str, bool]:
+    """(text, works) from the cost interval and the score change, as in the write-up."""
+    mid, (lo, hi) = v["cost"]
+    score = v["score"][0]
+    if key == "D":
+        return "best case, not buildable", False
+    if lo > 1:
+        return "costs more", False
+    if mid >= 1.10:
+        return "no saving, likely costs more", False
+    if hi < 1:
+        return ("works, same quality" if score >= -0.03 else "works, slightly less thorough"), True
+    return ("inconclusive" if mid <= 0.92 else "no clear saving"), False
 
 
-def _positions(rows: list[tuple]) -> tuple[list[float], float]:
-    ys, y = [], TOP
-    for row in rows:
-        h = HEAD_H if row[0] == "head" else ROW_H
-        ys.append(y + h / 2)
-        y += h
-    return ys, y
-
-
-def _x(value: float, lo: float, hi: float, x0: float) -> float:
-    return x0 + (min(max(value, lo), hi) - lo) / (hi - lo) * PANEL_W
-
-
-def _panel(svg: list[str], c: dict, rows: list[tuple], ys: list[float], bottom: float,
-           title: str, x0: float, lo: float, hi: float, ticks: list[float], fmt, ref: float,
-           metric: str, values: dict) -> None:  # fmt: skip
-    svg.append(f'<text x="{x0}" y="{TOP - 14}" fill="{c["text"]}" font-size="14" '
-               f'font-weight="600" {FONT}>{title}</text>')  # fmt: skip
-    # Vertical lines run through each group's rows only, never through a group heading.
-    heads = [y for row, y in zip(rows, ys, strict=True) if row[0] == "head"]
-    spans = [(h + 13, (heads[i + 1] - HEAD_H / 2) if i + 1 < len(heads) else bottom)
-             for i, h in enumerate(heads)]  # fmt: skip
-    xr = _x(ref, lo, hi, x0)
-    for t in ticks:
-        x = _x(t, lo, hi, x0)
-        for y1, y2 in spans:
-            svg.append(f'<line x1="{x:.1f}" y1="{y1:.1f}" x2="{x:.1f}" y2="{y2:.1f}" '
-                       f'stroke="{c["grid"]}" stroke-width="1"/>')  # fmt: skip
-        svg.append(f'<text x="{x:.1f}" y="{bottom + 18}" fill="{c["muted"]}" font-size="12" '
-                   f'text-anchor="middle" {FONT}>{fmt(t)}</text>')  # fmt: skip
-    dash = f'stroke="{c["muted"]}" stroke-width="1.5" stroke-dasharray="4 4"'
-    for y1, y2 in spans:
-        svg.append(f'<line x1="{xr:.1f}" y1="{y1:.1f}" x2="{xr:.1f}" y2="{y2:.1f}" {dash}/>')
-    for row, y in zip(rows, ys, strict=True):
-        if row[0] == "head":
-            continue
-        key = row[1]
-        if key is None:
-            svg.append(f'<circle cx="{xr:.1f}" cy="{y:.1f}" r="5" fill="{c["base"]}"/>')
-            continue
-        mid, (low, high) = values[key][metric]
-        x1, x2, xm = _x(low, lo, hi, x0), _x(high, lo, hi, x0), _x(mid, lo, hi, x0)
-        svg.append(f'<line x1="{x1:.1f}" y1="{y:.1f}" x2="{x2:.1f}" y2="{y:.1f}" '
-                   f'stroke="{c["mark"]}" stroke-width="2" stroke-linecap="round"/>')  # fmt: skip
-        svg.append(f'<circle cx="{xm:.1f}" cy="{y:.1f}" r="5" fill="{c["mark"]}"/>')
-        # Label beyond the interval end facing away from the reference line.
-        lx, anchor = (x2 + 8, "start") if mid >= ref else (x1 - 8, "end")
-        svg.append(f'<text x="{lx:.1f}" y="{y + 4:.1f}" fill="{c["text"]}" font-size="12" '
-                   f'text-anchor="{anchor}" {FONT}>{fmt(mid)}</text>')  # fmt: skip
+ROWS = [
+    ("head", "GIVING THE AGENT PROJECT CONTEXT"),
+    ("row", "B2", "Ask a context service first"),
+    ("row", "B", "Offer the service (agent may skip it)"),
+    ("row", "A", "Put the whole project in the prompt"),
+    ("row", "D", "Hand over exactly the right pieces"),
+    ("head", "CHANGING HOW THE AGENT WORKS"),
+    ("row", "effort", "Think less (low effort setting)"),
+    ("row", "trust", "Memory of earlier tasks, reviewed"),
+    ("row", "outline", "Show long files as an outline first"),
+    ("row", "memory", "Memory of earlier tasks, unreviewed"),
+    ("row", "prune", "Prune old context as it works"),
+]
 
 
 def render(d: dict, theme: str) -> str:
     c = THEMES[theme]
-    rows = layout(d)
-    ys, bottom = _positions(rows)
-    height = bottom + 92
+    W = 900
+    top = 104
+    ys, y = [], top
+    for kind, *_ in ROWS:
+        h = GROUP if kind == "head" else ROW
+        ys.append(y + h / 2)
+        y += h
+    bottom = y
+    height = bottom + 70
+
+    def x(change: float) -> float:
+        return BAR_X0 + (min(max(change, LO), HI) - LO) / (HI - LO) * BAR_W
+
+    total_runs = d["phase2_runs"] + d["loop_runs"]
     svg = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{height:.0f}" '
         f'viewBox="0 0 {W} {height:.0f}" role="img" aria-labelledby="t d">',
-        f'<title id="t">Context strategies, pruning and memory compared on '
-        f"{d['phase2_runs'] + d['loop_runs']} agent runs</title>",
-        '<desc id="d">Cost relative to a baseline and change in plan score, with 95% '
-        "intervals: five ways of giving a coding agent project context (Claude Code, "
-        "Haiku 4.5), and five cost levers in our own agent loop (Haiku 5.5).</desc>",
-        f'<text x="24" y="34" fill="{c["text"]}" font-size="20" font-weight="600" {FONT}>'
-        "How should a coding agent get project context?</text>",
-        f'<text x="24" y="58" fill="{c["muted"]}" font-size="13" {FONT}>'
-        f"{d['phase2_runs'] + d['loop_runs']} runs on one synthetic project · "
-        f"${d['phase2_cost']:.0f} API-equivalent (Claude Code) + "
-        f"${d['loop_charged']:.2f} charged (own loop)</text>",
+        '<title id="t">What actually cut a coding agent’s cost?</title>',
+        '<desc id="d">Change in cost for nine ideas, each against the same agent without it, '
+        "with a verdict: asking a context service first and thinking less worked; whole-project "
+        "prompts and pruning cost more.</desc>",
+        f'<text x="24" y="38" fill="{c["text"]}" font-size="22" font-weight="600" {FONT}>'
+        "What actually cut a coding agent’s cost?</text>",
+        f'<text x="24" y="64" fill="{c["muted"]}" font-size="14" {FONT}>'
+        f"Change in cost vs. the same agent without the idea · {total_runs} runs on one "
+        "project · plans graded against fixed rubrics</text>",
     ]
-    for row, y in zip(rows, ys, strict=True):
-        if row[0] == "head":
-            svg.append(f'<text x="24" y="{y + 5:.1f}" fill="{c["muted"]}" font-size="12" '
-                       f'font-weight="600" {FONT}>{row[1].upper()}</text>')  # fmt: skip
-            svg.append(f'<line x1="24" y1="{y + 13:.1f}" x2="{W - 24}" y2="{y + 13:.1f}" '
-                       f'stroke="{c["grid"]}" stroke-width="1"/>')  # fmt: skip
-        else:
-            svg.append(f'<text x="24" y="{y + 4:.1f}" fill="{c["text"]}" font-size="14" '
-                       f"{FONT}>{row[2]}</text>")  # fmt: skip
-    common = (svg, c, rows, ys, bottom)
-    _panel(*common, "Cost vs. baseline", LEFT, 0, 2.5, [0, 0.5, 1, 1.5, 2, 2.5],
-           lambda v: f"{v:g}×" if v in (0, 0.5, 1, 1.5, 2, 2.5) else f"{v:.2f}×", 1.0,
-           "cost", d["values"])  # fmt: skip
-    _panel(*common, "Plan score vs. baseline", LEFT + PANEL_W + GAP, -0.2, 0.2,
-           [-0.2, -0.1, 0, 0.1, 0.2], lambda v: f"{v:+.2f}" if round(v, 2) else "0", 0.0, "score",
-           d["values"])  # fmt: skip
-    foot = bottom + 50
+    x0 = x(0)
+    for t in (-0.5, 0, 0.5, 1.0):
+        tick = "0" if t == 0 else f"{t:+.0%}".replace("-", "−")
+        svg.append(f'<text x="{x(t):.1f}" y="{top - 8}" fill="{c["muted"]}" font-size="12" '
+                   f'text-anchor="middle" {FONT}>{tick}</text>')  # fmt: skip
+    for (kind, *rest), yc in zip(ROWS, ys, strict=True):
+        if kind == "head":
+            head = f'font-size="12" font-weight="600" letter-spacing="0.5" {FONT}'
+            svg.append(f'<text x="24" y="{yc + 9:.1f}" fill="{c["muted"]}" {head}>{rest[0]}</text>')
+            continue
+        key, label = rest
+        v = d["values"][key]
+        change = v["cost"][0] - 1
+        text, works = verdict(key, v)
+        fill = c["good"] if works else c["other"]
+        xa, xb = sorted((x0, x(change)))
+        svg.append(f'<text x="24" y="{yc + 5:.1f}" fill="{c["text"]}" font-size="15" '
+                   f"{FONT}>{label}</text>")  # fmt: skip
+        svg.append(f'<rect x="{xa:.1f}" y="{yc - 9:.1f}" width="{max(xb - xa, 2):.1f}" '
+                   f'height="18" rx="3" fill="{fill}"/>')  # fmt: skip
+        pct = f"{change:+.0%}".replace("-", "−")
+        vx, anchor = (xb + 8, "start") if change >= 0 else (xa - 8, "end")
+        svg.append(f'<text x="{vx:.1f}" y="{yc + 5:.1f}" fill="{c["text"]}" font-size="14" '
+                   f'font-weight="600" text-anchor="{anchor}" {FONT}>{pct}</text>')  # fmt: skip
+        weight = "600" if works else "400"
+        color = c["text"] if works else c["muted"]
+        svg.append(f'<text x="{BAR_X0 + BAR_W + 70}" y="{yc + 5:.1f}" fill="{color}" '
+                   f'font-size="14" font-weight="{weight}" {FONT}>{text}</text>')  # fmt: skip
+    svg.append(f'<line x1="{x0:.1f}" y1="{top}" x2="{x0:.1f}" y2="{bottom}" '
+               f'stroke="{c["zero"]}" stroke-width="1.5"/>')  # fmt: skip
     notes = [
-        "Dots: paired estimates; lines: 95% bootstrap intervals. Each group has its own "
-        "baseline; the groups differ in harness and model.",
-        "Claude Code cost is its list-price estimate, not a subscription charge; own-loop "
-        "cost is OpenRouter's charge. Details: docs/findings.md",
+        "Left of the line = cheaper. Highlighted = the saving is clear (95% interval) and plan "
+        "quality held. Each group has its own baseline.",
+        "First group: an existing coding agent, 300 runs. Second group: our own agent loop on a "
+        "newer model. Details: docs/findings.md",
     ]
     for i, note in enumerate(notes):
-        svg.append(f'<text x="24" y="{foot + 18 * i}" fill="{c["muted"]}" font-size="12" '
-                   f"{FONT}>{note}</text>")  # fmt: skip
+        svg.append(f'<text x="24" y="{bottom + 30 + 18 * i:.0f}" fill="{c["muted"]}" '
+                   f'font-size="12" {FONT}>{note}</text>')  # fmt: skip
     svg.append("</svg>")
     return "\n".join(svg) + "\n"
 
@@ -246,9 +225,9 @@ def main() -> None:
         path = out / f"results-{theme}.svg"
         path.write_text(render(d, theme), encoding="utf-8", newline="\n")
         print(path)
-    for key in ("effort", "trust", "outline", "memory", "prune"):
+    for _, key, label in (r for r in ROWS if r[0] == "row"):
         v = d["values"][key]
-        print(key, "cost", v["cost"], "score", v["score"], "pairs", v["pairs"])
+        print(f"{label}: {v['cost'][0] - 1:+.1%} -> {verdict(key, v)[0]}")
 
 
 if __name__ == "__main__":
