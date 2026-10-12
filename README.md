@@ -66,7 +66,7 @@ tokens.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/img/results-dark.svg">
-  <img alt="Bar chart of the change in cost for each idea against the same agent without it. Works with the same quality: ask a context service first (-21% in the first study, -36% against a plain agent in the second) and think less (-29%); reviewed memory -18% (slightly less thorough). No clear saving: offering the service, outline-first reads, unreviewed memory, pruning (+17%). The whole project in the prompt costs +97%. Combinations: service first and think less -62% (quality just under the bar); all three -72% (lower quality)" src="docs/img/results-light.svg">
+  <img alt="Bar chart: change in cost against a plain agent that reads the files itself. Ask a context service first: -36%, same quality (highlighted). Plus think less: -62%, slightly lower quality. Plus also trust reviewed memory: -72%, lower quality. Prune old context: +17%, no saving. Whole project in the prompt: +97%, costs double." src="docs/img/results-light.svg">
 </picture>
 
 ## What we tested
@@ -157,7 +157,8 @@ tokens.
 
   Treat the numbers as careful first measurements, not general laws.
 
-The full write-up is in [docs/findings.md](docs/findings.md); every run with
+The full write-up, with a chart of every result, is in
+[docs/findings.md](docs/findings.md); every run with
 its caveats is in [benchmarks/README.md](benchmarks/README.md).
 
 ## Try it

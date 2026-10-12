@@ -5,6 +5,11 @@ Every number here traces back to raw files under
 [`benchmarks/results/`](../benchmarks/results/); the detailed log with all
 caveats is [`benchmarks/README.md`](../benchmarks/README.md).
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="img/results-detail-dark.svg">
+  <img alt="Change in cost for every idea tested, each against the same agent without it, grouped by study, with a verdict on plan quality." src="img/results-detail-light.svg">
+</picture>
+
 ## The question
 
 Coding agents need project knowledge: decisions, schemas, conventions, known

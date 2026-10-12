@@ -162,12 +162,57 @@ ROWS = [
 ]
 
 
-def render(d: dict, theme: str) -> str:
+# The README chart: only the headline and the trade-offs, every row against a plain agent
+# that explores the files itself (Claude Code for the whole-project row, our loop otherwise).
+SIMPLE_ROWS = [
+    ("row", "service", "Ask a context service first"),
+    ("row", "service_low", "... and think less"),
+    ("row", "all_three", "... and also trust reviewed memory"),
+    ("row", "prune", "Prune old context as it works"),
+    ("row", "A", "Put the whole project in the prompt"),
+]
+SIMPLE_VERDICTS = {
+    "service": ("same quality", True),
+    "service_low": ("slightly lower quality", False),
+    "all_three": ("lower quality", False),
+    "prune": ("no saving", False),
+    "A": ("costs double", False),
+}
+VIEWS = {
+    "results": {
+        "rows": SIMPLE_ROWS,
+        "verdicts": SIMPLE_VERDICTS,
+        "title": "How to make a coding agent cheaper",
+        "subtitle": "Change in cost vs. a plain agent that reads the files itself",
+        "notes": [
+            "Left of the line = cheaper. Highlighted = cheaper with the same plan quality "
+            "(95% intervals, plans graded by fixed rubrics).",
+            "Our own agent loop on one project; the whole-project row is from a separate 300-run "
+            "study. All results: docs/findings.md",
+        ],
+    },
+    "results-detail": {
+        "rows": ROWS,
+        "verdicts": {},
+        "title": "What actually cut a coding agent’s cost? (all results)",
+        "subtitle": "Change in cost vs. the same agent without the idea",
+        "notes": [
+            "Left of the line = cheaper. Highlighted = the saving is clear (95% interval) and plan "
+            "quality held. Each group has its own baseline.",
+            "First group: an existing coding agent, 300 runs. Other groups: our own agent loop on "
+            "a newer model.",
+        ],
+    },
+}
+
+
+def render(d: dict, theme: str, view: dict) -> str:
     c = THEMES[theme]
+    rows = view["rows"]
     W = 900
     top = 104
     ys, y = [], top
-    for kind, *_ in ROWS:
+    for kind, *_ in rows:
         h = GROUP if kind == "head" else ROW
         ys.append(y + h / 2)
         y += h
@@ -181,22 +226,20 @@ def render(d: dict, theme: str) -> str:
     svg = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{height:.0f}" '
         f'viewBox="0 0 {W} {height:.0f}" role="img" aria-labelledby="t d">',
-        '<title id="t">What actually cut a coding agent’s cost?</title>',
-        '<desc id="d">Change in cost for nine ideas, each against the same agent without it, '
-        "with a verdict: asking a context service first and thinking less worked; whole-project "
-        "prompts and pruning cost more.</desc>",
+        f'<title id="t">{view["title"]}</title>',
+        f'<desc id="d">{view["subtitle"]}: one bar per setup with a verdict on plan '
+        "quality.</desc>",
         f'<text x="24" y="38" fill="{c["text"]}" font-size="22" font-weight="600" {FONT}>'
-        "What actually cut a coding agent’s cost?</text>",
+        f"{view['title']}</text>",
         f'<text x="24" y="64" fill="{c["muted"]}" font-size="14" {FONT}>'
-        f"Change in cost vs. the same agent without the idea · {total_runs} runs on one "
-        "project · plans graded against fixed rubrics</text>",
+        f"{view['subtitle']} · {total_runs} graded runs</text>",
     ]
     x0 = x(0)
     for t in (-0.5, 0, 0.5, 1.0):
         tick = "0" if t == 0 else f"{t:+.0%}".replace("-", "−")
         svg.append(f'<text x="{x(t):.1f}" y="{top - 8}" fill="{c["muted"]}" font-size="12" '
                    f'text-anchor="middle" {FONT}>{tick}</text>')  # fmt: skip
-    for (kind, *rest), yc in zip(ROWS, ys, strict=True):
+    for (kind, *rest), yc in zip(rows, ys, strict=True):
         if kind == "head":
             head = f'font-size="12" font-weight="600" letter-spacing="0.5" {FONT}'
             svg.append(f'<text x="24" y="{yc + 9:.1f}" fill="{c["muted"]}" {head}>{rest[0]}</text>')
@@ -204,7 +247,7 @@ def render(d: dict, theme: str) -> str:
         key, label = rest
         v = d["values"][key]
         change = v["cost"][0] - 1
-        text, works = verdict(key, v)
+        text, works = view["verdicts"].get(key) or verdict(key, v)
         fill = c["good"] if works else c["other"]
         xa, xb = sorted((x0, x(change)))
         svg.append(f'<text x="24" y="{yc + 5:.1f}" fill="{c["text"]}" font-size="15" '
@@ -221,13 +264,7 @@ def render(d: dict, theme: str) -> str:
                    f'font-size="14" font-weight="{weight}" {FONT}>{text}</text>')  # fmt: skip
     svg.append(f'<line x1="{x0:.1f}" y1="{top}" x2="{x0:.1f}" y2="{bottom}" '
                f'stroke="{c["zero"]}" stroke-width="1.5"/>')  # fmt: skip
-    notes = [
-        "Left of the line = cheaper. Highlighted = the saving is clear (95% interval) and plan "
-        "quality held. Each group has its own baseline.",
-        "First group: an existing coding agent, 300 runs. Other groups: our own agent loop on a "
-        "newer model. Details: docs/findings.md",
-    ]
-    for i, note in enumerate(notes):
+    for i, note in enumerate(view["notes"]):
         svg.append(f'<text x="24" y="{bottom + 30 + 18 * i:.0f}" fill="{c["muted"]}" '
                    f'font-size="12" {FONT}>{note}</text>')  # fmt: skip
     svg.append("</svg>")
@@ -238,10 +275,11 @@ def main() -> None:
     d = collect()
     out = ROOT / "docs" / "img"
     out.mkdir(parents=True, exist_ok=True)
-    for theme in THEMES:
-        path = out / f"results-{theme}.svg"
-        path.write_text(render(d, theme), encoding="utf-8", newline="\n")
-        print(path)
+    for name, view in VIEWS.items():
+        for theme in THEMES:
+            path = out / f"{name}-{theme}.svg"
+            path.write_text(render(d, theme, view), encoding="utf-8", newline="\n")
+            print(path)
     for _, key, label in (r for r in ROWS if r[0] == "row"):
         v = d["values"][key]
         print(f"{label}: {v['cost'][0] - 1:+.1%} -> {verdict(key, v)[0]}")
