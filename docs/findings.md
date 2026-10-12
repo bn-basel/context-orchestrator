@@ -177,6 +177,34 @@ follow-up then ran once on that memory and once on an empty one.
 So memory can only save reading once agents can trust it: reviewed findings,
 and agents allowed to rely on them. That is untested.
 
+## Result 8: what did work in our own loop
+
+Before choosing what to test next, the cost of the 70 phase 4 runs was
+broken down: **46% cache writes** (each new tool result is written to the
+prompt cache once), **38% output** (31% of it thinking), 16% cache reads.
+Pruning had only been able to touch the last share. Three levers aimed at
+the larger shares were then tested, each with a decision rule committed
+before the runs (cost interval entirely below ×1.0, score loss at most
+0.05).
+
+| Lever (Haiku 5.5, own loop) | Cost | 95% interval | Pairs cheaper | Score |
+|---|---|---|---|---|
+| **Low effort** instead of medium | **×0.71** | ×0.65–×0.77 | 10 of 10 | +0.04 |
+| **Reviewed memory, agents told to trust it** (vs no memory) | **×0.82** | ×0.74–×0.92 | 16 of 20 | −0.035 |
+| Outline-first reads of long files | ×0.91 | ×0.83–×1.00 | 6 of 10 | +0.04 |
+
+- **Low effort** cut thinking by about two-thirds and the agent also took
+  fewer, smaller steps, so it saved more than thinking alone accounts for.
+- **Trusted memory** works where unreviewed memory didn't. The 16 findings
+  (of 20) that a review confirmed were served as verified, and the agent was
+  told to rely on them. It re-opened 35% of the cited files instead of 59%.
+  The same findings unreviewed saved nothing measurable (×0.94), so the
+  saving comes from trust. Trusting agents missed a few more rubric points
+  (10 missed checks in 20 runs vs 6 without memory): within the margin, but
+  in the expected direction. The review was done by Claude, not by a person.
+- **Outline-first reads** rarely triggered: Haiku 5.5 already reads ranges
+  or short files most of the time. Inconclusive.
+
 ## Limits
 
 - **One corpus.** It is synthetic, and written by agents from the same model
@@ -186,19 +214,21 @@ and agents allowed to rely on them. That is untested.
   setting don't carry over to the other; result 6 shows how much that
   matters.
 - **Regex-graded plans**, not executed code changes.
-- **Small samples.** 20 tasks; 10–45-run checks after the main benchmark.
+- **Small samples.** 20 tasks; 10–60-run checks after the main benchmark.
 - **Two kinds of cost.** Claude Code figures are the CLI's list-price
   estimates, not what a subscription is charged. Own-loop figures are what
   OpenRouter actually charged (the list-price estimate matched them).
 
 ## What would move this forward
 
-1. **Trusted memory.** Let a person review findings, and tell agents that
-   reviewed ones need no re-checking. That tests whether trust, not
-   retrieval, is what stops the saving. Several follow-ups per earlier task
-   would show whether reuse pays for the cost of recording.
-2. **Make the service the default path.** The only clear saving came when
-   the agent was told to ask first.
-3. **Robustness:** a real open-source corpus, a larger model, longer tasks
+1. **Human-reviewed memory, reused several times.** Result 8 used reviews
+   by Claude. A person's review, and several follow-ups per earlier task,
+   would show whether reuse pays for recording and reviewing.
+2. **Combine the levers** that worked (low effort, trusted memory, the
+   service used first) and check that the savings add up without the
+   quality dip growing.
+3. **Make the service the default path.** In Claude Code its saving came
+   only when the agent was told to ask first.
+4. **Robustness:** a real open-source corpus, a larger model, longer tasks
    (where pruning could still matter), and an independent label and rubric
    check.

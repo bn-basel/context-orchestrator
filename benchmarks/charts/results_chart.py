@@ -8,9 +8,9 @@ interval. Two groups of rows, each against its own baseline:
 
 * Claude Code + Haiku 4.5 (phase 2, 300 runs): each strategy against the
   agent exploring alone; intervals over tasks, from the run's analysis.json.
-* Our own agent loop + Haiku 5.5 (phase 4, 70 runs): pruning against the same
-  loop without pruning, memory against the same loop with an empty memory;
-  intervals over (task, repetition) pairs, computed here from runs.jsonl.
+* Our own agent loop + Haiku 5.5 (phases 4-5): each lever against the same loop
+  without it (pruning, outline reads and low effort vs plain; memory vs empty
+  memory); intervals over (task, repetition) pairs, computed from runs.jsonl.
 
 Standard library only.
 """
@@ -28,6 +28,8 @@ RESULTS = ROOT / "benchmarks" / "results"
 PHASE2 = RESULTS / "20261011T032628Z-hallpass-agent"
 PRUNE = [RESULTS / "20261011T071428Z-loop-prune"]
 MEMORY = [RESULTS / "20261011T072205Z-loop-memory", RESULTS / "20261011T073027Z-loop-memory"]
+READS = [RESULTS / "20261012T022153Z-loop-prune"]  # L, LC (outline reads), LE (effort low)
+TRUST = [RESULTS / "20261012T023255Z-loop-trust", RESULTS / "20261012T024550Z-loop-trust"]
 RESAMPLES, SEED = 10_000, 20261011
 
 THEMES = {
@@ -93,17 +95,20 @@ def collect() -> dict:
 
     prune = loop_pairs(PRUNE, "LP", "L")
     memory = loop_pairs(MEMORY, "SM", "SM0")
+    outline = loop_pairs(READS, "LC", "L")
+    effort = loop_pairs(READS, "LE", "L")
+    trust = loop_pairs(TRUST, "TR", "T0")
+    loop = [prune, memory, effort, trust]  # READS counted once (outline and effort share it)
     summary = meta["summary"]
     return {
-        "values": {k: phase2(k) for k in ("A", "B", "B2", "D")} | {"prune": prune,
-                                                                   "memory": memory},
+        "values": {k: phase2(k) for k in ("A", "B", "B2", "D")}
+        | {"prune": prune, "memory": memory, "outline": outline, "effort": effort,
+           "trust": trust},
         "phase2_runs": sum(v["runs"] for v in summary.values()),
         "phase2_cost": sum(v["total_api_equivalent_cost_usd"] for v in summary.values()),
         "phase2_tasks": analysis["tasks"],
-        "loop_runs": prune["runs"] + memory["runs"],
-        "loop_charged": prune["charged"] + memory["charged"],
-        "prune_pairs": prune["pairs"],
-        "memory_pairs": memory["pairs"],
+        "loop_runs": sum(x["runs"] for x in loop),
+        "loop_charged": sum(x["charged"] for x in loop),
     }  # fmt: skip
 
 
@@ -119,8 +124,13 @@ def layout(d: dict) -> list[tuple]:
         ("row", "D", "Oracle: exactly the needed pieces"),
         ("head", f"Own agent loop, Haiku 5.5 · {d['loop_runs']} runs · vs. the same loop "
                  "without it"),
-        ("row", "prune", f"Pruning old tool output ({d['prune_pairs']} pairs)"),
-        ("row", "memory", f"Memory of an earlier task ({d['memory_pairs']} pairs)"),
+        *[("row", key, f"{label} ({d['values'][key]['pairs']} pairs)") for key, label in (
+            ("effort", "Low effort, less thinking"),
+            ("trust", "Trusted, reviewed memory"),
+            ("outline", "Outline-first file reads"),
+            ("memory", "Memory, unreviewed"),
+            ("prune", "Pruning old tool output"),
+        )],
     ]  # fmt: skip
 
 
@@ -190,8 +200,7 @@ def render(d: dict, theme: str) -> str:
         f"{d['phase2_runs'] + d['loop_runs']} agent runs</title>",
         '<desc id="d">Cost relative to a baseline and change in plan score, with 95% '
         "intervals: five ways of giving a coding agent project context (Claude Code, "
-        "Haiku 4.5), and pruning and cross-task memory in our own agent loop "
-        "(Haiku 5.5).</desc>",
+        "Haiku 4.5), and five cost levers in our own agent loop (Haiku 5.5).</desc>",
         f'<text x="24" y="34" fill="{c["text"]}" font-size="20" font-weight="600" {FONT}>'
         "How should a coding agent get project context?</text>",
         f'<text x="24" y="58" fill="{c["muted"]}" font-size="13" {FONT}>'
@@ -212,8 +221,8 @@ def render(d: dict, theme: str) -> str:
     _panel(*common, "Cost vs. baseline", LEFT, 0, 2.5, [0, 0.5, 1, 1.5, 2, 2.5],
            lambda v: f"{v:g}×" if v in (0, 0.5, 1, 1.5, 2, 2.5) else f"{v:.2f}×", 1.0,
            "cost", d["values"])  # fmt: skip
-    _panel(*common, "Plan score vs. baseline", LEFT + PANEL_W + GAP, -0.15, 0.15,
-           [-0.1, 0, 0.1], lambda v: f"{v:+.2f}" if round(v, 2) else "0", 0.0, "score",
+    _panel(*common, "Plan score vs. baseline", LEFT + PANEL_W + GAP, -0.2, 0.2,
+           [-0.2, -0.1, 0, 0.1, 0.2], lambda v: f"{v:+.2f}" if round(v, 2) else "0", 0.0, "score",
            d["values"])  # fmt: skip
     foot = bottom + 50
     notes = [
@@ -237,7 +246,7 @@ def main() -> None:
         path = out / f"results-{theme}.svg"
         path.write_text(render(d, theme), encoding="utf-8", newline="\n")
         print(path)
-    for key in ("prune", "memory"):
+    for key in ("effort", "trust", "outline", "memory", "prune"):
         v = d["values"][key]
         print(key, "cost", v["cost"], "score", v["score"], "pairs", v["pairs"])
 

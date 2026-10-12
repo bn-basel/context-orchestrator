@@ -10,25 +10,30 @@ benchmark harness, and every raw result.
 - **The question:** coding agents burn most of their tokens re-reading
   project context. Can a shared context service, plus ideas like pruning
   and memory, cut that cost without hurting the work?
-- **What we did:** 370 agent runs on a synthetic ~140k-token project with 20
-  graded tasks: 300 in Claude Code (Haiku 4.5), and 70 in our own agent loop
-  (Haiku 5.5, $0.43 actually charged).
-- **What worked:** asking the context service first cut cost by **~21%**
-  with no loss in quality. Just offering it didn't: agents often skipped it.
+- **What we did:** 460 agent runs on a synthetic ~140k-token project with 20
+  graded tasks: 300 in Claude Code (Haiku 4.5), and 160 in our own agent loop
+  (Haiku 5.5, $0.91 actually charged), each test planned before it ran.
+- **What worked:**
+  - asking the context service first: **~21% cheaper** (just offering it
+    didn't help: agents often skipped it);
+  - running the model at **low effort** (less thinking): **29% cheaper**,
+    cheaper in 10 of 10 pairs, no quality loss;
+  - memory from earlier tasks, **reviewed and trusted**: **18% cheaper**,
+    with a small, possibly noisy, quality dip.
 - **What didn't:** the whole project in the prompt **doubled** the cost.
-  **Pruning** old tool output from the agent's context, the in-place editing
-  idea behind Meta's *Context Language Models* and the Claude API's context
-  editing, looked like a 33–53% saving in replays of the recordings but cost
-  **17% more** when actually run on a newer model. **Memory across tasks**
-  produced accurate findings, but **saved nothing** (×0.98).
-- **The lesson:** agents re-read what they're given rather than trust it.
-  The bottleneck is trust, not retrieval. And savings estimated from one
-  model's recordings didn't survive a newer model: measure, don't
-  extrapolate.
+  **Pruning** old tool output, the in-place editing idea behind Meta's
+  *Context Language Models* and the Claude API's context editing, looked like
+  a 33–53% saving in replays but cost **17% more** when run on a newer
+  model. **Unreviewed memory** saved nothing, and outline-first file reads
+  were inconclusive.
+- **The lesson:** agents re-read what they're given unless they're allowed
+  to trust it, so the bottleneck is trust, not retrieval. And measure,
+  don't extrapolate: savings estimated from one model's recordings didn't
+  survive a newer model.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/img/results-dark.svg">
-  <img alt="Cost and plan score relative to a baseline: five context strategies from 300 Claude Code runs (Haiku 4.5), and pruning and cross-task memory from 70 runs of our own agent loop (Haiku 5.5)" src="docs/img/results-light.svg">
+  <img alt="Cost and plan score relative to a baseline: five context strategies from 300 Claude Code runs (Haiku 4.5), and five cost levers (low effort, trusted memory, outline reads, unreviewed memory, pruning) from 160 runs of our own agent loop (Haiku 5.5)" src="docs/img/results-light.svg">
 </picture>
 
 ## What we tested
@@ -48,12 +53,15 @@ benchmark harness, and every raw result.
 - **Smaller follow-up checks** (10 runs each): compact excerpts, "trust the
   excerpts" instructions, and a sub-agent that does all the reading.
 - **Replays of the recordings** to see where the tokens actually go.
-- **Two ideas in our own agent loop** (Haiku 5.5 via OpenRouter, 70 runs,
-  $0.43 actually charged):
+- **Five cost levers in our own agent loop** (Haiku 5.5 via OpenRouter, 160
+  runs, $0.91 actually charged):
   - **pruning**: removing old tool output from the agent's context as it
     works;
   - **memory across tasks**: agents save findings, each anchored to the file
-    lines that prove it, so a later task in the same area starts ahead.
+    lines that prove it, so a later task in the same area starts ahead;
+    tested unreviewed, and reviewed with agents told to trust it;
+  - **outline-first file reads**: long files show an outline first;
+  - **low effort**: less thinking per step.
 
 ## What we found
 
@@ -68,9 +76,18 @@ benchmark harness, and every raw result.
   Haiku 5.5 works in few, wide steps, so little old output is re-sent;
   pruned agents went back to re-read what was removed; and every edit forces
   part of the cached context to be written again.
-- **Memory across tasks didn't save money either** (cost ×0.98, 95% interval
-  0.90–1.09, over 20 pairs). The findings were accurate and reached the next
-  agent, but it **opened 30 of the 36 files they cited anyway**.
+- **Unreviewed memory across tasks didn't save money** (cost ×0.98, 95%
+  interval 0.90–1.09, over 20 pairs). The findings were accurate and reached
+  the next agent, but it **opened 30 of the 36 files they cited anyway**.
+- **Reviewed memory that agents may trust did** (cost ×0.82, 0.74–0.92, 20
+  pairs). Told that verified findings were checked against their lines,
+  agents re-opened 35% of the cited files instead of 59%. Plans missed
+  slightly more rubric points (score −0.035), within the margin set in
+  advance. The findings were reviewed by Claude, not by a person.
+- **Low effort cut cost by 29%** (×0.71, 0.65–0.77; 10 of 10 pairs) with no
+  quality loss: about two-thirds less thinking, and fewer, smaller steps.
+- **Outline-first file reads were inconclusive** (×0.91, 0.83–1.00): Haiku
+  5.5 rarely reads long files whole anyway.
 - **Agents re-read what they've already been given.** With the service, 35%
   of what they read had already been served; with memory, most cited files
   were opened again. Better search scores and good findings didn't change
@@ -88,10 +105,14 @@ benchmark harness, and every raw result.
   saving on paper (pruning) vanished on a newer model that works
   differently. Measure before building on a replay.
 - **The bottleneck is trust, not retrieval.** Agents verify what they're
-  handed by reading the source again. That is reasonable for unreviewed
-  findings, and it means memory can only pay off once findings are reviewed
-  and agents are allowed to rely on them. That is the next thing worth
-  testing.
+  handed by reading the source again. Unreviewed memory saved nothing; the
+  same findings, reviewed and trusted, saved 18%. A memory is only worth
+  what its review process makes it worth, and trusting it trades a little
+  thoroughness for cost.
+- **Look at where the money goes before optimising.** On Haiku 5.5, 46% of
+  cost was writing new context to the cache and 38% was output. Pruning old
+  context targeted the remaining 16%, which is why it couldn't pay; turning
+  down thinking targeted output and gave the biggest saving.
 - **The evidence is narrow:** one synthetic project, two small models,
   rubric-graded plans rather than executed code, and small samples for the
   newer checks. Claude Code figures are list-price estimates, not

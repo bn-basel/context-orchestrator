@@ -135,10 +135,18 @@ models, graders) is untested.
       task), score −0.03. Replication (45 runs, $0.27): cost ×1.02 [0.92–1.14];
       pooled ×0.98. No saving: agents opened 30 of 36 cited files anyway.
 
+## Phase 5: levers aimed at where the cost is (done)
+
+- [x] Cost breakdown of phase 4: cache writes 46%, output 38%, cache reads 16%.
+- [x] 5c low effort: cost ×0.71 [0.65–0.77], no quality loss. Works.
+- [x] 5b reviewed + trusted memory: cost ×0.82 [0.74–0.92] vs no memory,
+      score −0.035 (within margin). Works; unreviewed memory still doesn't.
+- [x] 5a outline-first reads: ×0.91 [0.83–1.00]. Inconclusive.
+
 ## Next: candidates, in order of evidence
 
-- [ ] **Trusted memory**: human-reviewed findings that agents may rely on
-      without re-reading, and several follow-ups per parent task (reuse).
+- [ ] **Human-reviewed memory reused several times**, and the working levers
+      combined (low effort + trusted memory + service first).
 - [ ] **Robustness**: a second model, a real open-source corpus, an
       independent label and rubric check, and a held-out task set.
 - [ ] **Several specialist agents sharing one store**, with per-agent
