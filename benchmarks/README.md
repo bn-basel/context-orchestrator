@@ -848,3 +848,30 @@ uv run python benchmarks/memory_analysis.py --arm X --base L benchmarks/results/
 ```
 
 Expected cost about $0.20.
+
+## Phase 6 result: the levers combined (run `20261012T034938Z-loop-combo`)
+
+45 runs as planned, no errors, **$0.212 charged**. 15 pairs per comparison
+(5 follow-up tasks × 3 repetitions), 95% bootstrap intervals:
+
+| Comparison | Cost | 95% interval | Pairs cheaper | Input tokens | Output tokens | Score |
+|---|---|---|---|---|---|---|
+| **S (service first) vs L (plain)** | **×0.66** | ×0.58 – ×0.75 | 15 of 15 | ×0.58 | ×0.81 | −0.02 |
+| **X (all three) vs L** | **×0.28** | ×0.23 – ×0.33 | 15 of 15 | ×0.17 | ×0.37 | **−0.15** |
+| X vs S | ×0.42 | ×0.35 – ×0.51 | 15 of 15 | ×0.29 | ×0.46 | −0.12 |
+
+Mean scores: L 0.94, S 0.92, X 0.80. Rubric checks missed in 15 runs: L 5,
+S 7, X 17.
+
+- **The context service, used first, works in this loop too:** 34% cheaper
+  (better than the 21% measured in Claude Code), with no loss in quality.
+- **All three together cut cost by 72%**, more than the ×0.46 predicted from
+  the separate effects, but **fail the pre-set rule on quality** (score
+  −0.15, worse than −0.05). The combined agent made a median of 4 model calls
+  and **read no files at all** (median 0; S read 6, L 11): it answered from
+  the service and the findings alone. What it missed were details nobody had
+  handed it: the flag cache delay, the superuser toggle endpoint, adding a
+  flag with a default-off migration.
+- So the levers don't just add up: low effort and trusted memory together
+  tip the agent from "check less" into "don't look". The service alone is
+  the safe win here; the full stack is a cheap, shallower answer.
