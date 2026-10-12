@@ -143,10 +143,19 @@ models, graders) is untested.
       score −0.035 (within margin). Works; unreviewed memory still doesn't.
 - [x] 5a outline-first reads: ×0.91 [0.83–1.00]. Inconclusive.
 
+## Phases 6-7: the levers combined (done)
+
+- [x] Service first vs plain agent (30 pairs): cost ×0.64, tokens ×0.51, same
+      quality. The headline result.
+- [x] + low effort: ×0.38, score −0.051 (just past the bar).
+- [x] + trusted memory: adds nothing on top of the service (×0.98).
+- [x] All three: ×0.28 but score −0.15 (the agent stopped reading files).
+
 ## Next: candidates, in order of evidence
 
-- [ ] **Human-reviewed memory reused several times**, and the working levers
-      combined (low effort + trusted memory + service first).
+- [ ] **The middle ground** between service-first (−36%, same quality) and
+      service + low effort (−62%, slightly lower quality).
+- [ ] **Human-reviewed memory reused several times.**
 - [ ] **Robustness**: a second model, a real open-source corpus, an
       independent label and rubric check, and a held-out task set.
 - [ ] **Several specialist agents sharing one store**, with per-agent

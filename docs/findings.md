@@ -205,6 +205,33 @@ before the runs (cost interval entirely below ×1.0, score loss at most
 - **Outline-first reads** rarely triggered: Haiku 5.5 already reads ranges
   or short files most of the time. Inconclusive.
 
+## Result 9: the levers combined
+
+Phases 6 and 7 compared combinations of the working levers with a plain
+agent (file tools only, effort medium) on the five follow-up tasks, three
+repetitions each.
+
+| Setup (vs plain agent) | Pairs | Cost | 95% interval | Input tokens | Score |
+|---|---|---|---|---|---|
+| **Ask the context service first** | 30 | **×0.64** | ×0.58–×0.70 | ×0.51 | −0.02 |
+| … and think less (effort low) | 15 | ×0.38 | ×0.32–×0.44 | ×0.26 | −0.051 |
+| … and trust reviewed memory (effort medium) | 15 | ×0.60 | ×0.53–×0.69 | ×0.45 | −0.01 |
+| … and think less and trust reviewed memory | 15 | ×0.28 | ×0.23–×0.33 | ×0.17 | −0.15 |
+
+- **The service, used first, is the robust result.** 36% cheaper and half
+  the input tokens, cheaper in 29 of 30 pairs, same quality. That is a
+  larger saving than in Claude Code (21%).
+- **Thinking less on top** saves much more. Its score drop (−0.051) is just
+  past the −0.05 bar fixed in advance, so it does not count as working.
+- **Trusted memory adds nothing on top of the service** (×0.98 vs the
+  service alone). Result 8's 18% was measured against an agent told to
+  double-check findings. Against a plain service agent the service already
+  supplies most of what the findings say.
+- **All three together** were the cheapest (−72%, beyond the −54% predicted
+  if the savings multiplied), but the agent stopped opening files (median 0)
+  and missed details nobody had handed it. Savings don't simply add up:
+  stacked, the levers turn "check less" into "don't look".
+
 ## Limits
 
 - **One corpus.** It is synthetic, and written by agents from the same model
@@ -224,9 +251,9 @@ before the runs (cost interval entirely below ×1.0, score loss at most
 1. **Human-reviewed memory, reused several times.** Result 8 used reviews
    by Claude. A person's review, and several follow-ups per earlier task,
    would show whether reuse pays for recording and reviewing.
-2. **Combine the levers** that worked (low effort, trusted memory, the
-   service used first) and check that the savings add up without the
-   quality dip growing.
+2. **Tune the middle ground** between the service alone (−36%, same
+   quality) and service plus low effort (−62%, slightly lower): for example
+   low effort only for routine steps.
 3. **Make the service the default path.** In Claude Code its saving came
    only when the agent was told to ask first.
 4. **Robustness:** a real open-source corpus, a larger model, longer tasks

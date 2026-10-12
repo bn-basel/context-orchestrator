@@ -31,6 +31,8 @@ PRUNE = [RESULTS / "20261011T071428Z-loop-prune"]
 MEMORY = [RESULTS / "20261011T072205Z-loop-memory", RESULTS / "20261011T073027Z-loop-memory"]
 READS = [RESULTS / "20261012T022153Z-loop-prune"]  # L, LC (outline reads), LE (effort low)
 TRUST = [RESULTS / "20261012T023255Z-loop-trust", RESULTS / "20261012T024550Z-loop-trust"]
+# Phase 6 (L, S, X) and phase 7 (L, S, SE, TR): combinations against a plain agent.
+COMBO = [RESULTS / "20261012T034938Z-loop-combo", RESULTS / "20261012T050712Z-loop-combo"]
 RESAMPLES, SEED = 10_000, 20261011
 
 FONT = 'font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif"'
@@ -90,12 +92,17 @@ def collect() -> dict:
     outline = loop_pairs(READS, "LC", "L")
     effort = loop_pairs(READS, "LE", "L")
     trust = loop_pairs(TRUST, "TR", "T0")
-    loop = [prune, memory, effort, trust]  # READS counted once (outline and effort share it)
+    service = loop_pairs(COMBO, "S", "L")  # pooled over both combo runs
+    service_low = loop_pairs(COMBO[1:], "SE", "L")
+    all_three = loop_pairs(COMBO[:1], "X", "L")
+    # Each run folder counted once: READS via effort, COMBO via service.
+    loop = [prune, memory, effort, trust, service]
     summary = meta["summary"]
     return {
         "values": {k: phase2(k) for k in ("A", "B", "B2", "D")}
         | {"prune": prune, "memory": memory, "outline": outline, "effort": effort,
-           "trust": trust},
+           "trust": trust, "service": service, "service_low": service_low,
+           "all_three": all_three},
         "phase2_runs": sum(v["runs"] for v in summary.values()),
         "phase2_cost": sum(v["total_api_equivalent_cost_usd"] for v in summary.values()),
         "phase2_tasks": analysis["tasks"],
@@ -126,7 +133,13 @@ def verdict(key: str, v: dict) -> tuple[str, bool]:
     if mid >= 1.10:
         return "no saving, likely costs more", False
     if hi < 1:
-        return ("works, same quality" if score >= -0.03 else "works, slightly less thorough"), True
+        if score >= -0.03:
+            return "works, same quality", True
+        if score >= -0.05:
+            return "works, slightly less thorough", True
+        if score >= -0.06:
+            return "quality just under the bar", False
+        return "cheaper, but lower quality", False
     return ("inconclusive" if mid <= 0.92 else "no clear saving"), False
 
 
@@ -142,6 +155,10 @@ ROWS = [
     ("row", "outline", "Show long files as an outline first"),
     ("row", "memory", "Memory of earlier tasks, unreviewed"),
     ("row", "prune", "Prune old context as it works"),
+    ("head", "COMBINED, AGAINST A PLAIN AGENT"),
+    ("row", "service", "Ask the service first"),
+    ("row", "service_low", "... and think less"),
+    ("row", "all_three", "... and think less and trust memory"),
 ]
 
 
@@ -207,7 +224,7 @@ def render(d: dict, theme: str) -> str:
     notes = [
         "Left of the line = cheaper. Highlighted = the saving is clear (95% interval) and plan "
         "quality held. Each group has its own baseline.",
-        "First group: an existing coding agent, 300 runs. Second group: our own agent loop on a "
+        "First group: an existing coding agent, 300 runs. Other groups: our own agent loop on a "
         "newer model. Details: docs/findings.md",
     ]
     for i, note in enumerate(notes):

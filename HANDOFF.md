@@ -3,7 +3,7 @@
 Development notes for resuming work in a new session. Keep them current:
 update at the end of every milestone and before a session's context runs out.
 
-**Last updated:** 2026-10-12. Phases 0–5 done and written up (README,
+**Last updated:** 2026-10-12. Phases 0–7 done and written up (README,
 docs/findings.md, chart); repository public.
 
 ## Resume prompt
@@ -24,6 +24,7 @@ Paste into a new session opened in the repository folder:
 | 3a–3d | done: compact excerpts (no agent benefit), trace analysis (35% re-reads), what-if replay (pruning −33% to −53%, untested), reader sub-agent (worse) |
 | 4 Pruning + memory | 4a done: pruning gave no saving on Haiku 5.5 (cost ×1.17, 10 runs, $0.07); 4b memory: findings accurate and served, but no saving (cost ×0.98 pooled over 20 pairs; agents re-open cited files) |
 | 5 Levers by cost share | done: low effort ×0.71 (works); reviewed + trusted memory ×0.82 vs no memory (works, score −0.035); outline-first reads ×0.91 (inconclusive); 120 runs, $0.47 |
+| 6–7 Combined | done: service first vs plain ×0.64 cost, ×0.51 tokens, same quality (the README headline); + low effort ×0.38 but score −0.051; + trusted memory adds nothing; all three ×0.28 but score −0.15; 105 runs, $0.52 |
 | Publication | **public since 2026-10-11** at github.com/bn-basel/context-orchestrator (fresh repository with the cleaned history); the pre-rewrite repository is kept private as bn-basel/context-orchestrator-private-archive (still holds the old commits with the personal email: never make it public) |
 
 The full story with numbers: [docs/findings.md](docs/findings.md); every run
@@ -55,11 +56,16 @@ a person (`tasks/hallpass_followups.findings.json`). Analysis:
 `benchmarks/memory_analysis.py --arm X --base Y <runs>`. Spent on the key so
 far: about $0.91 of $5.
 
+Phases 6–7 (2026-10-12): runs `20261012T034938Z-loop-combo` (L/S/X, 45
+runs, $0.212) and `20261012T050712Z-loop-combo` (L/S/SE/TR, 60 runs,
+$0.308). The README leads with service-first vs plain, pooled over both. In
+total about $1.42 of the $5 key is used.
+
 Candidates, if the owner wants more:
 
-1. **Combine what works** (low effort + trusted memory, maybe service first)
-   and check the savings add up; **human-reviewed** memory reused across
-   several follow-ups.
+1. **The middle ground** between service first (−36%, same quality) and
+   service + low effort (−62%, slightly lower quality); **human-reviewed**
+   memory reused across several follow-ups.
 2. **Robustness:** a real open-source corpus, a larger model, longer tasks,
    an independent label and rubric check.
 3. **Publication:** done (public). The owner plans social media posts; a PNG
