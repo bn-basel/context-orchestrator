@@ -875,3 +875,26 @@ S 7, X 17.
 - So the levers don't just add up: low effort and trusted memory together
   tip the agent from "check less" into "don't look". The service alone is
   the safe win here; the full stack is a cheap, shallower answer.
+
+## Phase 7 plan: which pair of levers keeps quality? (committed before any run)
+
+Phase 6: the service first works alone (×0.66, same quality); all three
+together are much cheaper (×0.28) but lose quality. This looks for the best
+combination that keeps quality. Same 5 follow-up tasks × 3 repetitions × 4
+arms = 60 runs, shuffled:
+
+- `L`: plain agent (baseline).
+- `S`: service first, effort medium.
+- `SE`: service first + effort `low` (same prompt and tools as S).
+- `TR`: service first + trusted reviewed memory, effort medium (as in 5b).
+
+**Decision rule.** A combination counts as working if, against L, the
+measured-cost interval lies entirely below ×1.0 and the mean score drops by
+no more than 0.05. Among those, the cheapest becomes the headline candidate.
+SE and TR are also compared with S to show what each adds to the service.
+
+```bash
+uv run ctxo loop-eval combo benchmarks/tasks/hallpass_followups.json --rubrics benchmarks/tasks/hallpass_followups.rubrics.json --findings benchmarks/tasks/hallpass_followups.findings.json --arms L,S,SE,TR --reps 3
+```
+
+Expected cost about $0.20.

@@ -81,15 +81,15 @@ EFFORT = "medium"  # Claude Haiku 5.5's default, stated explicitly
 THINKING_TYPES = ("thinking", "redacted_thinking")
 PROVIDER = {"only": ["anthropic"], "allow_fallbacks": False}
 
-ARMS = ("L", "LP", "LC", "LE", "S", "SP", "SM", "SM0", "TR", "TU", "T0", "X")
-SERVICE_ARMS = ("S", "SP", "SM", "SM0", "TR", "TU", "T0", "X")
+ARMS = ("L", "LP", "LC", "LE", "S", "SE", "SP", "SM", "SM0", "TR", "TU", "T0", "X")
+SERVICE_ARMS = ("S", "SE", "SP", "SM", "SM0", "TR", "TU", "T0", "X")
 MEMORY_ARMS = ("SM", "SM0")
 PRUNE_ARMS = ("LP", "SP")
 COMPACT_READ_ARMS = ("LC",)
 TRUST_ARMS = ("TR", "TU", "T0", "X")
 TRUSTING_ARMS = ("TR", "X")  # told to rely on verified findings
 # X combines the three levers that worked: service first, trusted reviewed memory, effort low.
-ARM_EFFORT = {"LE": "low", "X": "low"}  # every other arm uses LoopConfig.effort
+ARM_EFFORT = {"LE": "low", "SE": "low", "X": "low"}  # every other arm uses LoopConfig.effort
 
 READ_LIMIT_LINES = 2000
 COMPACT_READ_LINES = 150  # LC: whole-file reads of longer files return an outline
@@ -753,12 +753,16 @@ def plan_trust(suite: TaskSuite, rubrics: dict[str, Any], reps: int,
     return jobs
 
 
+COMBO_STATES = {"L": None, "S": "base", "SE": "base", "TR": "trusted", "X": "trusted"}
+
+
 def plan_combo(suite: TaskSuite, rubrics: dict[str, Any], reps: int,
-               task_ids: list[str] | None, seed: int) -> list[Job]:  # fmt: skip
-    """Follow-up tasks with a plain agent (L), the context service used first (S), and all
-    three working levers together (X: service first, trusted reviewed memory, effort low).
-    Run order is shuffled."""
-    states = {"L": None, "S": "base", "X": "trusted"}
+               task_ids: list[str] | None, seed: int,
+               arms: tuple[str, ...] = ("L", "S", "X")) -> list[Job]:  # fmt: skip
+    """Follow-up tasks with combinations of the working levers: L plain, S context service
+    first, SE service first + effort low, TR service first + trusted reviewed memory, X all
+    three (service first, trusted memory, effort low). Run order is shuffled."""
+    states = {arm: COMBO_STATES[arm] for arm in arms}
     tasks = [t for t in suite.tasks if not task_ids or t.id in task_ids]
     jobs = [
         Job(t, arm, r, rubrics[t.id], state=state)
@@ -968,7 +972,8 @@ def summarise(records: list[dict[str, Any]]) -> dict[str, Any]:
 
 def _comparisons(arms: set[str]) -> list[tuple[str, str]]:
     wanted = [("LP", "L"), ("LC", "L"), ("LE", "L"), ("SP", "S"), ("S", "L"), ("SM", "SM0"),
-              ("TR", "T0"), ("TU", "T0"), ("TR", "TU"), ("X", "L"), ("X", "S")]  # fmt: skip
+              ("TR", "T0"), ("TU", "T0"), ("TR", "TU"), ("X", "L"), ("X", "S"),
+              ("SE", "L"), ("SE", "S"), ("TR", "L"), ("TR", "S")]  # fmt: skip
     return [(a, b) for a, b in wanted if a in arms and b in arms]
 
 

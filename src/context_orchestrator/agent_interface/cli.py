@@ -162,7 +162,10 @@ def _build_parser() -> argparse.ArgumentParser:
     le.add_argument("--rubrics", type=Path, required=True)
     le.add_argument("--parents", type=Path, help="memory: suite holding the parent tasks")
     le.add_argument("--parent-rubrics", type=Path, help="memory: rubrics for the parents")
-    le.add_argument("--arms", default="L,LP", help="prune experiment arms (L, LP, LC, LE, S, SP)")
+    le.add_argument(
+        "--arms",
+        help="prune: L, LP, LC, LE, S, SP (default L,LP); combo: L, S, SE, TR, X (default L,S,X)",
+    )
     le.add_argument("--findings", type=Path, help="trust: reviewed findings to seed")
     le.add_argument("--tasks", help="comma-separated task ids (default: all)")
     le.add_argument("--reps", type=int, default=1)
@@ -267,7 +270,7 @@ def _loop_eval(args: argparse.Namespace) -> int:
         "rubrics_sha256": own_loop.sha256_file(args.rubrics),
     }
     if args.experiment == "prune":
-        arms = [a.strip() for a in args.arms.split(",")]
+        arms = [a.strip() for a in (args.arms or "L,LP").split(",")]
         plain = ("L", "LP", "LC", "LE", "S", "SP")
         unknown = [a for a in arms if a not in plain]
         if unknown:
@@ -277,8 +280,16 @@ def _loop_eval(args: argparse.Namespace) -> int:
         if not args.findings:
             raise ValueError(f"the {args.experiment} experiment needs --findings")
         seeds = own_loop.trust_seeds(args.findings)
-        plan = own_loop.plan_trust if args.experiment == "trust" else own_loop.plan_combo
-        jobs = plan(suite, rubrics, args.reps, task_ids, args.seed)
+        if args.experiment == "trust":
+            jobs = own_loop.plan_trust(suite, rubrics, args.reps, task_ids, args.seed)
+        else:
+            arms = tuple(a.strip() for a in (args.arms or "L,S,X").split(","))
+            unknown = [a for a in arms if a not in own_loop.COMBO_STATES]
+            if unknown:
+                raise ValueError(
+                    f"combo arms are {', '.join(own_loop.COMBO_STATES)}; not {unknown}"
+                )
+            jobs = own_loop.plan_combo(suite, rubrics, args.reps, task_ids, args.seed, arms)
         meta["findings"] = {"file": args.findings.as_posix(),
                             "sha256": own_loop.sha256_file(args.findings),
                             "seeded": len(seeds["trusted"])}  # fmt: skip

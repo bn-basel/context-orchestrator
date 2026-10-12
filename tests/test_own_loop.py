@@ -389,3 +389,22 @@ def test_combo_arm_combines_service_trust_and_low_effort(tmp_path: Path) -> None
     assert set(sent["X"]) == {"low"} and set(sent["S"]) == {"medium"}
     raw = json.loads(gzip.decompress((run_dir / "raw" / "F05-X-task-0.json.gz").read_bytes()))
     assert "_[finding, verified" in raw["messages"][2]["content"][0]["content"]
+
+
+def test_service_low_effort_arm() -> None:
+    assert own_loop.system_prompt("SE") == own_loop.system_prompt("S")
+    assert own_loop.ARM_EFFORT["SE"] == "low"
+    assert [t["name"] for t in own_loop.tools_for("SE")] == [
+        t["name"] for t in own_loop.tools_for("S")
+    ]
+    followups = load_suite(REPO / "benchmarks/tasks/hallpass_followups.json")
+    rubrics = own_loop.rubrics_for(
+        REPO / "benchmarks/tasks/hallpass_followups.rubrics.json", followups
+    )
+    jobs = own_loop.plan_combo(followups, rubrics, 1, ["F01"], 3, ("L", "S", "SE", "TR"))
+    assert {(j.arm, j.state) for j in jobs} == {
+        ("L", None),
+        ("S", "base"),
+        ("SE", "base"),
+        ("TR", "trusted"),
+    }
