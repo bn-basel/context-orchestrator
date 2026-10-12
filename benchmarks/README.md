@@ -898,3 +898,33 @@ uv run ctxo loop-eval combo benchmarks/tasks/hallpass_followups.json --rubrics b
 ```
 
 Expected cost about $0.20.
+
+## Phase 7 result: service first + one more lever (run `20261012T050712Z-loop-combo`)
+
+60 runs as planned, no errors, **$0.308 charged** (more than the $0.20
+estimated: the plain-agent runs cost more than assumed). 15 pairs per
+comparison:
+
+| Comparison | Cost | 95% interval | Pairs cheaper | Input tokens | Score | Verdict |
+|---|---|---|---|---|---|---|
+| S (service first) vs L | ×0.62 | ×0.54 – ×0.70 | 14 of 15 | ×0.45 | −0.02 | works |
+| **SE (service first + low effort) vs L** | **×0.38** | ×0.32 – ×0.44 | 15 of 15 | ×0.26 | **−0.051** | fails the quality bar by 0.001 |
+| TR (service first + trusted memory) vs L | ×0.60 | ×0.53 – ×0.69 | 14 of 15 | ×0.45 | −0.01 | works |
+| SE vs S | ×0.61 | ×0.55 – ×0.70 | 15 of 15 | ×0.58 | −0.03 | |
+| TR vs S | ×0.98 | ×0.87 – ×1.11 | 9 of 15 | ×1.01 | +0.01 | adds nothing |
+
+Mean scores: L 0.95, S 0.93, SE 0.90, TR 0.94. Missed rubric checks in 15
+runs: L 4, S 6, SE 8, TR 5. Median files read: L 11, S 4, SE 3, TR 5.
+
+**Service first, pooled with phase 6 (30 pairs): cost ×0.64 [0.58–0.70],
+input tokens ×0.51 [0.42–0.61], cheaper in 29 of 30, score −0.02.** This is
+the most robust result in the repository.
+
+- **Service + low effort** cuts cost by 62% and tokens by 74%, but its score
+  drop (−0.0511) is just past the −0.05 bar fixed in advance, so by the rule
+  it does not count as working. It is the cheapest option with only a small
+  quality cost.
+- **Trusted memory adds nothing on top of the service here** (×0.98 vs S).
+  In phase 5b its −18% was measured against a service agent told to check
+  findings (T0); against a plain service agent (S) the extra saving
+  disappears. The service already supplies most of what the findings say.
