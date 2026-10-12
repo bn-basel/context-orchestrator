@@ -787,3 +787,34 @@ estimate (×0.91) is above the ×0.90 bar for a second batch, so by the rule
 this is reported as no saving. The outline was served only 9 times in 10
 runs: Haiku 5.5 already reads ranges or short files most of the time, so
 the lever rarely triggers on this corpus.
+
+## Phase 5b result: trusted memory (runs `20261012T023255Z-loop-trust`, `20261012T024550Z-loop-trust`)
+
+First batch, 30 runs, $0.158: TR vs T0 cost ×0.89 [0.76–1.02], promising by
+the pre-set rule, so one more batch of the same size ran (30 runs, $0.154).
+No errors. Pooled, 20 pairs per comparison:
+
+| Comparison | Cost (measured) | 95% interval | Pairs cheaper | Input tokens | Score difference |
+|---|---|---|---|---|---|
+| **TR (reviewed, trusted) vs T0 (no memory)** | **×0.82** | **×0.74 – ×0.92** | **16 of 20** | ×0.78 | −0.035 |
+| TR vs TU (same findings, unreviewed) | ×0.88 | ×0.79 – ×0.97 | 17 of 20 | ×0.81 | −0.037 |
+| TU vs T0 | ×0.94 | ×0.84 – ×1.05 | 12 of 20 | ×0.96 | +0.002 |
+
+(Batch 2 alone: TR vs T0 ×0.76 [0.67–0.89].)
+
+**Trusted memory works** by the pre-set rule: the cost interval lies below
+×1.0 and the score drop (0.035) is within the 0.05 allowed. Unreviewed
+memory again shows no clear saving (×0.94, as in phase 4b), so the saving
+comes from the trust, not from the findings being there.
+
+**Behaviour changed as intended.** Agents told to rely on verified findings
+re-opened **28 of the 81** cited files they were served (35%); with the same
+findings unreviewed they re-opened **38 of 64** (59%); in phase 4b, 30 of 36
+(83%).
+
+**The cost of trusting.** TR runs missed 10 rubric checks in 20 runs, T0 6
+and TU 7 (F05 toggle +1, F01 tests +1, F07 feature-flags table +1 vs T0).
+That is within the tolerance and could be noise, but it points the expected
+way: relying on a summary instead of the source can drop a detail. The
+findings were reviewed by Claude, not a person; with human review the
+trade-off may differ.
