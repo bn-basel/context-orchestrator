@@ -1,0 +1,322 @@
+{
+  "schema_version": 1,
+  "run_id": "20261012T022153Z-loop-prune",
+  "experiment": "prune",
+  "started_at": "2026-10-12T02:21:53+00:00",
+  "git": {
+    "commit": "da3ff4aca694504a889e1500ca24009e6ff21b1f",
+    "dirty": false
+  },
+  "config": {
+    "model": "anthropic/claude-haiku-5.5",
+    "max_tokens": 16000,
+    "effort": "medium",
+    "max_turns": 40,
+    "max_run_usd": 0.6,
+    "max_total_usd": 2.0,
+    "prune": {
+      "trigger_tokens": 12000,
+      "keep": 3,
+      "min_clear_tokens": 4000
+    },
+    "service_hops": 2,
+    "seed": 20261011
+  },
+  "jobs": [
+    {
+      "task": "H11",
+      "arm": "LE",
+      "rep": 1,
+      "role": "task",
+      "pair": null
+    },
+    {
+      "task": "H13",
+      "arm": "L",
+      "rep": 1,
+      "role": "task",
+      "pair": null
+    },
+    {
+      "task": "H19",
+      "arm": "L",
+      "rep": 0,
+      "role": "task",
+      "pair": null
+    },
+    {
+      "task": "H17",
+      "arm": "L",
+      "rep": 0,
+      "role": "task",
+      "pair": null
+    },
+    {
+      "task": "H17",
+      "arm": "LC",
+      "rep": 1,
+      "role": "task",
+      "pair": null
+    },
+    {
+      "task": "H19",
+      "arm": "LE",
+      "rep": 0,
+      "role": "task",
+      "pair": null
+    },
+    {
+      "task": "H09",
+      "arm": "LE",
+      "rep": 1,
+      "role": "task",
+      "pair": null
+    },
+    {
+      "task": "H11",
+      "arm": "LE",
+      "rep": 0,
+      "role": "task",
+      "pair": null
+    },
+    {
+      "task": "H17",
+      "arm": "LE",
+      "rep": 1,
+      "role": "task",
+      "pair": null
+    },
+    {
+      "task": "H09",
+      "arm": "LE",
+      "rep": 0,
+      "role": "task",
+      "pair": null
+    },
+    {
+      "task": "H11",
+      "arm": "L",
+      "rep": 1,
+      "role": "task",
+      "pair": null
+    },
+    {
+      "task": "H11",
+      "arm": "L",
+      "rep": 0,
+      "role": "task",
+      "pair": null
+    },
+    {
+      "task": "H19",
+      "arm": "LC",
+      "rep": 0,
+      "role": "task",
+      "pair": null
+    },
+    {
+      "task": "H11",
+      "arm": "LC",
+      "rep": 1,
+      "role": "task",
+      "pair": null
+    },
+    {
+      "task": "H13",
+      "arm": "LC",
+      "rep": 0,
+      "role": "task",
+      "pair": null
+    },
+    {
+      "task": "H11",
+      "arm": "LC",
+      "rep": 0,
+      "role": "task",
+      "pair": null
+    },
+    {
+      "task": "H09",
+      "arm": "LC",
+      "rep": 1,
+      "role": "task",
+      "pair": null
+    },
+    {
+      "task": "H13",
+      "arm": "L",
+      "rep": 0,
+      "role": "task",
+      "pair": null
+    },
+    {
+      "task": "H13",
+      "arm": "LC",
+      "rep": 1,
+      "role": "task",
+      "pair": null
+    },
+    {
+      "task": "H09",
+      "arm": "L",
+      "rep": 0,
+      "role": "task",
+      "pair": null
+    },
+    {
+      "task": "H13",
+      "arm": "LE",
+      "rep": 1,
+      "role": "task",
+      "pair": null
+    },
+    {
+      "task": "H19",
+      "arm": "L",
+      "rep": 1,
+      "role": "task",
+      "pair": null
+    },
+    {
+      "task": "H19",
+      "arm": "LC",
+      "rep": 1,
+      "role": "task",
+      "pair": null
+    },
+    {
+      "task": "H17",
+      "arm": "L",
+      "rep": 1,
+      "role": "task",
+      "pair": null
+    },
+    {
+      "task": "H09",
+      "arm": "LC",
+      "rep": 0,
+      "role": "task",
+      "pair": null
+    },
+    {
+      "task": "H13",
+      "arm": "LE",
+      "rep": 0,
+      "role": "task",
+      "pair": null
+    },
+    {
+      "task": "H17",
+      "arm": "LC",
+      "rep": 0,
+      "role": "task",
+      "pair": null
+    },
+    {
+      "task": "H19",
+      "arm": "LE",
+      "rep": 1,
+      "role": "task",
+      "pair": null
+    },
+    {
+      "task": "H17",
+      "arm": "LE",
+      "rep": 0,
+      "role": "task",
+      "pair": null
+    },
+    {
+      "task": "H09",
+      "arm": "L",
+      "rep": 1,
+      "role": "task",
+      "pair": null
+    }
+  ],
+  "system_prompts": {
+    "L": "You are working in a read-only copy of a software project. Use the tools to look at its files; paths are relative to the project root. Be efficient: search before reading, and read only what you need. When you have enough information, reply with your final answer as plain text, without calling a tool.",
+    "LP": "You are working in a read-only copy of a software project. Use the tools to look at its files; paths are relative to the project root. Be efficient: search before reading, and read only what you need. When you have enough information, reply with your final answer as plain text, without calling a tool.",
+    "LC": "You are working in a read-only copy of a software project. Use the tools to look at its files; paths are relative to the project root. Be efficient: search before reading, and read only what you need. When you have enough information, reply with your final answer as plain text, without calling a tool.",
+    "LE": "You are working in a read-only copy of a software project. Use the tools to look at its files; paths are relative to the project root. Be efficient: search before reading, and read only what you need. When you have enough information, reply with your final answer as plain text, without calling a tool.",
+    "S": "You are working in a read-only copy of a software project. Use the tools to look at its files; paths are relative to the project root. Be efficient: search before reading, and read only what you need. When you have enough information, reply with your final answer as plain text, without calling a tool. A context service is available as the tool request_context. It returns relevant project knowledge (decisions, schema, conventions, known issues, code, tests) with file paths and trust labels. Use it to find what you need; you may call it several times with follow-up questions, and read files directly when you need more. Start by calling request_context with the task before you read any files.",
+    "SP": "You are working in a read-only copy of a software project. Use the tools to look at its files; paths are relative to the project root. Be efficient: search before reading, and read only what you need. When you have enough information, reply with your final answer as plain text, without calling a tool. A context service is available as the tool request_context. It returns relevant project knowledge (decisions, schema, conventions, known issues, code, tests) with file paths and trust labels. Use it to find what you need; you may call it several times with follow-up questions, and read files directly when you need more. Start by calling request_context with the task before you read any files.",
+    "SM": "You are working in a read-only copy of a software project. Use the tools to look at its files; paths are relative to the project root. Be efficient: search before reading, and read only what you need. When you have enough information, reply with your final answer as plain text, without calling a tool. A context service is available as the tool request_context. It returns relevant project knowledge (decisions, schema, conventions, known issues, code, tests) with file paths and trust labels. Use it to find what you need; you may call it several times with follow-up questions, and read files directly when you need more. Start by calling request_context with the task before you read any files. A colleague will work on a related task in this project next week. Before your final answer, use record_finding to save the 3-6 findings they would most need (where the relevant behaviour lives, rules and decisions that constrain it, traps), each anchored to the lines that show it. Findings from earlier tasks may appear in request_context answers: they are unreviewed, so check anything you rely on heavily.",
+    "SM0": "You are working in a read-only copy of a software project. Use the tools to look at its files; paths are relative to the project root. Be efficient: search before reading, and read only what you need. When you have enough information, reply with your final answer as plain text, without calling a tool. A context service is available as the tool request_context. It returns relevant project knowledge (decisions, schema, conventions, known issues, code, tests) with file paths and trust labels. Use it to find what you need; you may call it several times with follow-up questions, and read files directly when you need more. Start by calling request_context with the task before you read any files. A colleague will work on a related task in this project next week. Before your final answer, use record_finding to save the 3-6 findings they would most need (where the relevant behaviour lives, rules and decisions that constrain it, traps), each anchored to the lines that show it. Findings from earlier tasks may appear in request_context answers: they are unreviewed, so check anything you rely on heavily.",
+    "TR": "You are working in a read-only copy of a software project. Use the tools to look at its files; paths are relative to the project root. Be efficient: search before reading, and read only what you need. When you have enough information, reply with your final answer as plain text, without calling a tool. A context service is available as the tool request_context. It returns relevant project knowledge (decisions, schema, conventions, known issues, code, tests) with file paths and trust labels. Use it to find what you need; you may call it several times with follow-up questions, and read files directly when you need more. Start by calling request_context with the task before you read any files. Findings from earlier tasks may appear in request_context answers. Those labelled verified were checked by a reviewer against the lines they cite: rely on them, and open a file only for details they don't cover.",
+    "TU": "You are working in a read-only copy of a software project. Use the tools to look at its files; paths are relative to the project root. Be efficient: search before reading, and read only what you need. When you have enough information, reply with your final answer as plain text, without calling a tool. A context service is available as the tool request_context. It returns relevant project knowledge (decisions, schema, conventions, known issues, code, tests) with file paths and trust labels. Use it to find what you need; you may call it several times with follow-up questions, and read files directly when you need more. Start by calling request_context with the task before you read any files. Findings from earlier tasks may appear in request_context answers: they are unreviewed, so check anything you rely on heavily.",
+    "T0": "You are working in a read-only copy of a software project. Use the tools to look at its files; paths are relative to the project root. Be efficient: search before reading, and read only what you need. When you have enough information, reply with your final answer as plain text, without calling a tool. A context service is available as the tool request_context. It returns relevant project knowledge (decisions, schema, conventions, known issues, code, tests) with file paths and trust labels. Use it to find what you need; you may call it several times with follow-up questions, and read files directly when you need more. Start by calling request_context with the task before you read any files. Findings from earlier tasks may appear in request_context answers: they are unreviewed, so check anything you rely on heavily."
+  },
+  "prompt_template": "You are an engineer on the Hallpass project, whose code and docs are in the current directory.\n\nTask: {task}\n\nWrite a short implementation plan (at most 300 words): which files and functions to change, which project decisions, constraints and known issues apply, and the main risks. Name file paths. Do not modify any files. If something the task asks about does not exist in the project, say so plainly.",
+  "key_status_before": {
+    "limit": 5,
+    "limit_remaining": 4.566768135,
+    "usage": 0.433231865
+  },
+  "suite": {
+    "name": "hallpass",
+    "sha256": "9c6bc7e5af815474ee007dede934579502724a04a3604c05b516982cc24235d7"
+  },
+  "rubrics_sha256": "34915db21c098e97fb885d9e5601897a837de26188c75ee48d92d45ab834084b",
+  "finished_at": "2026-10-12T02:31:53+00:00",
+  "key_status_after": {
+    "limit": 5,
+    "limit_remaining": 4.415952045,
+    "usage": 0.584047955
+  },
+  "summary": {
+    "arms": {
+      "L": {
+        "runs": 10,
+        "failed_runs": 0,
+        "mean_score": 0.92,
+        "median_total_input_tokens": 89761.0,
+        "median_output_tokens": 4340.5,
+        "total_estimated_cost_usd": 0.0607,
+        "total_measured_cost_usd": 0.0607,
+        "median_tool_calls": 16.0
+      },
+      "LC": {
+        "runs": 10,
+        "failed_runs": 0,
+        "mean_score": 0.96,
+        "median_total_input_tokens": 82765.5,
+        "median_output_tokens": 3840.0,
+        "total_estimated_cost_usd": 0.0562,
+        "total_measured_cost_usd": 0.0562,
+        "median_tool_calls": 15.0
+      },
+      "LE": {
+        "runs": 10,
+        "failed_runs": 0,
+        "mean_score": 0.96,
+        "median_total_input_tokens": 59651.5,
+        "median_output_tokens": 2646.0,
+        "total_estimated_cost_usd": 0.0433,
+        "total_measured_cost_usd": 0.0433,
+        "median_tool_calls": 12.0
+      }
+    },
+    "pairs": {
+      "LC vs L": {
+        "tasks": 5,
+        "input_token_ratio": 0.9919,
+        "estimated_cost_ratio": 0.9124,
+        "measured_cost_ratio": 0.9124,
+        "mean_score_difference": 0.04
+      },
+      "LE vs L": {
+        "tasks": 5,
+        "input_token_ratio": 0.6744,
+        "estimated_cost_ratio": 0.7116,
+        "measured_cost_ratio": 0.7116,
+        "mean_score_difference": 0.04
+      }
+    },
+    "parent_runs": {
+      "runs": 0,
+      "total_estimated_cost_usd": 0,
+      "findings_recorded": []
+    }
+  }
+}

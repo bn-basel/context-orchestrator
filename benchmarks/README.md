@@ -761,3 +761,29 @@ uv run python benchmarks/memory_analysis.py --arm LC --base L benchmarks/results
 
 Expected cost: ~$0.006 per run, ~$0.36 for both; the loop stops itself at an
 estimated $2 per experiment.
+
+## Phase 5a + 5c result: smaller reads, less thinking (run `20261012T022153Z-loop-prune`)
+
+30 runs as planned, no errors, **$0.160 charged** (sum of per-response
+charges). Pairs = task × repetition (10 per comparison), 95% bootstrap
+intervals.
+
+| Arm vs L | Cost (measured) | 95% interval | Pairs cheaper | Input tokens | Score difference |
+|---|---|---|---|---|---|
+| **LE, effort low** | **×0.71** | **×0.65 – ×0.77** | **10 of 10** | ×0.67 | +0.04 |
+| LC, outline-first reads | ×0.91 | ×0.83 – ×1.0001 | 6 of 10 | ×1.00 | +0.04 |
+
+Mean scores: L 0.92, LC 0.96, LE 0.96. Total charge per arm: L $0.061, LC
+$0.056, LE $0.043.
+
+**Low effort works** by the pre-set rule (interval entirely below ×1.0, no
+score loss), and saves more than the ~12% that thinking alone could explain:
+median thinking per task fell from 2,062 to 755 tokens, but the agent also
+made fewer calls (median 5 vs 6) and read less (input ×0.67), so cache
+writes fell too. Every one of the 10 pairs was cheaper.
+
+**Outline-first reads: not shown.** The interval touches ×1.0 and the point
+estimate (×0.91) is above the ×0.90 bar for a second batch, so by the rule
+this is reported as no saving. The outline was served only 9 times in 10
+runs: Haiku 5.5 already reads ranges or short files most of the time, so
+the lever rarely triggers on this corpus.
