@@ -311,7 +311,7 @@ class MemoryStore:
                    highlight(findings_fts, 1, ?, ?) AS hl_claim,
                    highlight(findings_fts, 2, ?, ?) AS hl_evidence
             FROM findings_fts JOIN findings f ON f.finding_id = findings_fts.finding_id
-            WHERE findings_fts MATCH ?
+            WHERE findings_fts MATCH ? AND f.review != 'rejected'
             ORDER BY rank, f.created_at LIMIT ?
             """,
             (*_MARKS, *_MARKS, match, limit),
@@ -328,3 +328,11 @@ class MemoryStore:
 
     def count_findings(self) -> int:
         return int(self.conn.execute("SELECT COUNT(*) FROM findings").fetchone()[0])
+
+    def set_review(self, finding_id: str, review: str) -> bool:
+        """Record a reviewer's verdict; False if no such finding."""
+        with self.conn:
+            cur = self.conn.execute(
+                "UPDATE findings SET review = ? WHERE finding_id = ?", (review, finding_id)
+            )
+        return cur.rowcount > 0

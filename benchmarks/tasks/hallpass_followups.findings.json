@@ -1,0 +1,207 @@
+{
+  "schema_version": 1,
+  "description": "The 20 findings recorded by the parent runs of benchmarks/results/20261011T072205Z-loop-memory (Claude Haiku 5.5), each reviewed against the cited lines and the code by Claude (Opus 5.5) on 2026-10-12, not by a person. Used to seed the phase 5 trust experiment (confirmed findings only).",
+  "reviewer": "Claude (Opus 5.5)",
+  "findings": [
+    {
+      "claim": "Block-booking occurrence times are computed by adding n×weeks to the first occurrence's UTC instant, which is the root cause of the HP-503 DST drift. Fixing it means stepping local dates instead.",
+      "path": "src/hallpass/bookings/recurring.py",
+      "line_start": 83,
+      "line_end": 94,
+      "evidence": "start = first_start + step * n  # TODO(HP-503): local-date arithmetic",
+      "agent_id": "parent run of H01",
+      "review": "confirmed",
+      "review_note": "Matches the cited lines and the code."
+    },
+    {
+      "claim": "The HP-503 regression test is marked xfail(strict=True), so once occurrence_windows is fixed it will XPASS and fail until the marker is removed.",
+      "path": "tests/bookings/test_recurring.py",
+      "line_start": 63,
+      "line_end": 66,
+      "evidence": "@pytest.mark.xfail(strict=True, reason=\"HP-503: series computed in UTC drift an hour after the clocks change\")",
+      "agent_id": "parent run of H01",
+      "review": "confirmed",
+      "review_note": "Matches the cited lines and the code."
+    },
+    {
+      "claim": "The only sanctioned local→UTC conversion is local_to_utc, which rejects spring-forward gap times and takes fold=0 for the autumn overlap. Use it rather than ad-hoc ZoneInfo calls.",
+      "path": "src/hallpass/core/tz.py",
+      "line_start": 42,
+      "line_end": 50,
+      "evidence": "def local_to_utc(day: date, wall: time, *, fold: int = 0) -> datetime:",
+      "agent_id": "parent run of H01",
+      "review": "confirmed",
+      "review_note": "Matches the cited lines and the code."
+    },
+    {
+      "claim": "The proposed fix in ADR 0013 (store local date/time plus tz) is not agreed or implemented, so a schema change is not a prerequisite for the narrow local-date fix. The known-issues doc incorrectly ties the fix to ADR 0013.",
+      "path": "docs/decisions/0013-local-wall-clock-slot-boundaries.md",
+      "line_start": 8,
+      "line_end": 9,
+      "evidence": "Status: **proposed** — not agreed, not implemented",
+      "agent_id": "parent run of H01",
+      "review": "rejected",
+      "review_note": "Second sentence is a judgement the cited lines don't support: the known issue ties the fix to ADR 0013 because extending existing series would give inconsistent rows."
+    },
+    {
+      "claim": "refunds.refund_preview hard-codes use_v2=True and ignores the refund_policy_v2 flag, while the real refund (refund_requested) reads the flag. The cancel-page figure therefore diverges from the issued refund whenever the flag is off.",
+      "path": "src/hallpass/billing/refunds.py",
+      "line_start": 305,
+      "line_end": 311,
+      "evidence": "return decide(price_pence, starts_at, clock.now(), use_v2=True)",
+      "agent_id": "parent run of H05",
+      "review": "confirmed",
+      "review_note": "Matches the cited lines and the code."
+    },
+    {
+      "claim": "The actual refund decision reads the flag at cancel time via flags.is_enabled(\"refund_policy_v2\") and passes it as use_v2 to the pure decide() function. Preview should use the same call so both paths share one source of truth.",
+      "path": "src/hallpass/billing/refunds.py",
+      "line_start": 164,
+      "line_end": 170,
+      "evidence": "use_v2=flags.is_enabled(\"refund_policy_v2\"),",
+      "agent_id": "parent run of H05",
+      "review": "confirmed",
+      "review_note": "Matches the cited lines and the code."
+    },
+    {
+      "claim": "Feature flags are cached per process for 60 seconds, so a flip of refund_policy_v2 can reach web and worker processes at different times. Preview and refund can briefly disagree around a flip, which is accepted by ADR 0014.",
+      "path": "docs/decisions/0014-feature-flags-in-database.md",
+      "line_start": 33,
+      "line_end": 34,
+      "evidence": "Cached per process for 60 seconds. Accept that a flip takes up to a minute",
+      "agent_id": "parent run of H05",
+      "review": "confirmed",
+      "review_note": "Matches the cited lines and the code."
+    },
+    {
+      "claim": "Known issue: refund_preview always uses v2 and ignores the refund_policy_v2 flag; the cancel page and actual refund disagree if the flag is turned off. Listed as a 'small one' with no fix recorded.",
+      "path": "docs/known-issues/billing.md",
+      "line_start": 100,
+      "line_end": 102,
+      "evidence": "`refunds.refund_preview` always uses v2 and ignores the",
+      "agent_id": "parent run of H05",
+      "review": "confirmed",
+      "review_note": "Matches the cited lines and the code."
+    },
+    {
+      "claim": "The Paybridge outage runbook says to turn on a banner by flipping `payments_paused_banner`, but that flag does not exist. Today the only route is asking the product owner to edit the council website.",
+      "path": "docs/runbooks/paybridge-outage.md",
+      "line_start": 25,
+      "line_end": 28,
+      "evidence": "2. Turn on the banner: flip `payments_paused_banner`... we don't actually have that flag.",
+      "agent_id": "parent run of H07",
+      "review": "confirmed",
+      "review_note": "Matches the cited lines and the code."
+    },
+    {
+      "claim": "Runtime switches are rows in the feature_flags table read via hallpass.core.flags.is_enabled(key). Unknown keys are off, and values are cached per process for 60 seconds.",
+      "path": "src/hallpass/core/flags.py",
+      "line_start": 64,
+      "line_end": 80,
+      "evidence": "Unknown flags are OFF. ``subject`` (usually resident id) drives the percentage rollout",
+      "agent_id": "parent run of H07",
+      "review": "confirmed",
+      "review_note": "Matches the cited lines and the code."
+    },
+    {
+      "claim": "New flags must be added by migration with enabled = false (ADR 0014 and conventions). Flags are removed by migration once permanent. Flag rows are seeded in db/migrations/0007_feature_flags.sql.",
+      "path": "docs/conventions.md",
+      "line_start": 80,
+      "line_end": 86,
+      "evidence": "Add the row in a migration with `enabled = false`.",
+      "agent_id": "parent run of H07",
+      "review": "confirmed",
+      "review_note": "Matches the cited lines and the code."
+    },
+    {
+      "claim": "The public booking pages are not in this repo: references point to a separate frontend repo. The banner's rendering therefore lives outside Hallpass, and the backend can only expose the flag state (e.g. via the public availability API, GET /api/bookings/availability).",
+      "path": "docs/bookings/overview.md",
+      "line_start": 15,
+      "line_end": 16,
+      "evidence": "| `hallpass/bookings/availability.py` | Free-slot search for the public pages and the staff diary |",
+      "agent_id": "parent run of H07",
+      "review": "rejected",
+      "review_note": "The cited lines (a table of bookings modules) don't show that the public pages live in another repository; the claim is not anchored."
+    },
+    {
+      "claim": "staff_users.last_login_at (and session_epoch) is added by migration 0010, so the 'no last_login_at on staff_users' statements in auth.py, the ADR and the known-issues doc are stale or wrong; the column appears to exist in the schema.",
+      "path": "db/migrations/0010_release_3_2.sql",
+      "line_start": 21,
+      "line_end": 24,
+      "evidence": "ALTER TABLE staff_users ADD COLUMN session_epoch integer NOT NULL DEFAULT 0,\n                        ADD COLUMN last_login_at timestamptz;",
+      "agent_id": "parent run of H10",
+      "review": "confirmed",
+      "review_note": "Matches the cited lines and the code."
+    },
+    {
+      "claim": "Resident single-use is enforced in verify_magic_link by comparing the token's issued time to residents.last_login_at under SELECT ... FOR UPDATE; the staff branch returns early and never checks or updates any login timestamp, which is why staff links are reusable within TTL.",
+      "path": "src/hallpass/accounts/auth.py",
+      "line_start": 108,
+      "line_end": 124,
+      "evidence": "if row[0] is not None and issued <= row[0]:\n        raise InvalidLink(\"That login link has already been used. Use the newest email we sent.\")",
+      "agent_id": "parent run of H10",
+      "review": "confirmed",
+      "review_note": "Matches the cited lines and the code."
+    },
+    {
+      "claim": "The test test_staff_link_can_be_reused_within_ttl asserts the current reusable behaviour; it will fail once staff links are single-use and must be flipped to assert rejection on the second use.",
+      "path": "tests/accounts/test_auth.py",
+      "line_start": 76,
+      "line_end": 81,
+      "evidence": "assert auth.verify_magic_link(pg_conn, token).role == \"finance\"\n    assert auth.verify_magic_link(pg_conn, token).role == \"finance\"",
+      "agent_id": "parent run of H10",
+      "review": "confirmed",
+      "review_note": "Matches the cited lines and the code."
+    },
+    {
+      "claim": "ADR 0004 says links are single use, but the staff branch was never implemented; the ADR's 'Later notes' and the staff-accounts howto both document staff reuse as known behaviour, so docs must be updated alongside the code.",
+      "path": "docs/decisions/0004-passwordless-magic-links.md",
+      "line_start": 52,
+      "line_end": 54,
+      "evidence": "can be reused until they expire. Not what this ADR intended.",
+      "agent_id": "parent run of H10",
+      "review": "confirmed",
+      "review_note": "Matches the cited lines and the code."
+    },
+    {
+      "claim": "The nightly job already targets yesterday (local), but its call is broken: reconcile_paybridge passes the date as the connection argument to reconcile_day(conn, *, day, ...) and calls len() on the int that reconcile_day returns. Each run should raise TypeError.",
+      "path": "src/hallpass/worker.py",
+      "line_start": 123,
+      "line_end": 129,
+      "evidence": "return len(reconciliation.reconcile_day(target))",
+      "agent_id": "parent run of H12",
+      "review": "confirmed",
+      "review_note": "Matches the cited lines and the code."
+    },
+    {
+      "claim": "_email_finance calls enqueue() with kwargs (kind, channel, recipient, payload, clock, dedupe_key) that enqueue() does not accept. enqueue() requires a template= keyword and puts any other kwargs into **refs, so the finance email cannot be queued as written. The dedupe_key is not enforced anywhere.",
+      "path": "src/hallpass/billing/reconciliation.py",
+      "line_start": 149,
+      "line_end": 161,
+      "evidence": "kind=\"reconciliation_exceptions\",",
+      "agent_id": "parent run of H12",
+      "review": "rejected",
+      "review_note": "Wrong in part: notifications_outbox has a unique index on dedupe_key (migration 0005), so 'not enforced anywhere' is false; the call does fail for lack of template=."
+    },
+    {
+      "claim": "Storage in reconciliation_exceptions is idempotent per (day, kind, paybridge_id) via ON CONFLICT DO NOTHING, so re-running a past day is safe for the table. The email has no such guard, so every re-run of a day that has mismatches sends another email.",
+      "path": "src/hallpass/billing/reconciliation.py",
+      "line_start": 128,
+      "line_end": 140,
+      "evidence": "ON CONFLICT (day, kind, paybridge_id) DO NOTHING",
+      "agent_id": "parent run of H12",
+      "review": "rejected",
+      "review_note": "Second sentence relies on finding 17's wrong premise; the outbox has a dedupe index."
+    },
+    {
+      "claim": "The known-issues entry for HP-489 says the worker still passes today's date and the fix is pending. The current worker code already subtracts one day, so the known-issue text is stale. The real break is the call signature bug in the same function.",
+      "path": "docs/known-issues/billing.md",
+      "line_start": 15,
+      "line_end": 23,
+      "evidence": "Fix is one line in `worker.py` (`today_local() - 1 day`)",
+      "agent_id": "parent run of H12",
+      "review": "confirmed",
+      "review_note": "Matches the cited lines and the code."
+    }
+  ]
+}

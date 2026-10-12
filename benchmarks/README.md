@@ -706,3 +706,58 @@ already served. The system prompt says findings are unreviewed and to check
 anything relied on, which invites this; phase 3b's "rely on the excerpts"
 instruction did not change the behaviour either. Memory saves reading only
 if agents trust it, and an unreviewed finding should not be trusted blindly.
+
+## Phase 5 plan: three levers aimed at where the cost is (committed before any run)
+
+Where the cost of the 70 phase 4 runs went (Haiku 5.5, list prices applied to
+the measured tokens): **cache writes 46%** (each new tool result is written to
+the prompt cache once), **output 38%** (31% of output tokens are thinking),
+cache reads 16%, uncached input ~0%. No call's prompt passed 100k tokens.
+Pruning could only touch the cache-read share, which fits its result.
+
+Outside evidence for the three levers: compressing tool output before it
+reaches the agent (CoACT, SWE-Pruner, 2026) and reusing **verified** memory
+(GenericAgent preprint, 2026). A 2025 JetBrains study found masking old
+observations halves cost on long SWE-bench runs; our 4a result suggests
+short runs don't benefit.
+
+**5a, smaller reads + 5c, less thinking: one run, three arms, 30 runs.** Same
+5 tasks as 4a (H17, H13, H11, H19, H09) × 2 repetitions × 3 arms, shuffled:
+
+- `L`: file tools only, effort `medium` (baseline, as in 4a).
+- `LC`: as L, but `read_file` on a file longer than 150 lines without
+  `offset`/`limit` returns an outline (the first 20 lines plus the line where
+  each definition, heading or SQL statement starts), and the agent reads
+  ranges from there. Targets cache writes.
+- `LE`: as L at effort `low`. Targets thinking output.
+
+**5b, trusted memory: 30 runs.** The 20 findings the 4b parent runs recorded
+were reviewed against the code by Claude (Opus 5.5), **not by a person**: 16
+confirmed, 4 rejected with reasons (`tasks/hallpass_followups.findings.json`).
+The 16 confirmed findings are seeded into memory; each of the 5 follow-up
+tasks × 2 repetitions runs in three arms, shuffled:
+
+- `TR`: findings marked **verified**; the agent is told verified findings were
+  checked against their lines, to rely on them and open files only for what
+  they don't cover.
+- `TU`: the same findings, unreviewed; told to check anything it relies on
+  (the 4b instruction).
+- `T0`: empty memory, same instruction as TU.
+
+**Decision rule (fixed now).** Analysis with `memory_analysis.py`: pairs are
+task × repetition, 95% bootstrap interval over pairs. A lever counts as
+**working** if the measured-cost interval lies entirely below ×1.0 and the
+mean score drops by no more than 0.05. **Promising** if the point estimate is
+at most ×0.90 but the interval crosses ×1.0: then, and only then, one more
+batch of the same size. Otherwise it is reported as no saving. For 5b the
+main comparison is TR vs T0; TR vs TU isolates the effect of trust alone, and
+the count of cited files re-opened shows whether behaviour changed.
+
+```bash
+uv run ctxo loop-eval prune benchmarks/tasks/hallpass.json --rubrics benchmarks/tasks/hallpass.rubrics.json --arms L,LC,LE --tasks H17,H13,H11,H19,H09 --reps 2
+uv run ctxo loop-eval trust benchmarks/tasks/hallpass_followups.json --rubrics benchmarks/tasks/hallpass_followups.rubrics.json --findings benchmarks/tasks/hallpass_followups.findings.json --reps 2
+uv run python benchmarks/memory_analysis.py --arm LC --base L benchmarks/results/<run>
+```
+
+Expected cost: ~$0.006 per run, ~$0.36 for both; the loop stops itself at an
+estimated $2 per experiment.

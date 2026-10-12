@@ -27,6 +27,7 @@ RETRIEVAL_MODES = ("bm25", "hybrid", "semantic")
 MIN_CLAIM_CHARS, MAX_CLAIM_CHARS = 20, 800
 MAX_EVIDENCE_CHARS = 400
 MAX_FINDING_LINES = 60
+REVIEW_VERDICTS = ("confirmed", "rejected", "unreviewed")
 
 
 def _squash(text: str) -> str:
@@ -152,6 +153,17 @@ class ContextService:
         )
         self.store.add_finding(finding)  # a repeat of a stored finding is not stored twice
         return finding
+
+    def review_finding(self, finding_id: str, verdict: str) -> None:
+        """A person's (or a named reviewer's) verdict on a finding.
+
+        "confirmed" findings are served as verified; "rejected" ones are no
+        longer served; "unreviewed" resets the verdict.
+        """
+        if verdict not in REVIEW_VERDICTS:
+            raise ValueError(f"verdict must be one of {REVIEW_VERDICTS}")
+        if not self.store.set_review(finding_id, verdict):
+            raise ValueError(f"no finding {finding_id}")
 
     def close(self) -> None:
         self.store.close()

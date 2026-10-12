@@ -81,12 +81,17 @@ EFFORT = "medium"  # Claude Haiku 5.5's default, stated explicitly
 THINKING_TYPES = ("thinking", "redacted_thinking")
 PROVIDER = {"only": ["anthropic"], "allow_fallbacks": False}
 
-ARMS = ("L", "LP", "S", "SP", "SM", "SM0")
-SERVICE_ARMS = ("S", "SP", "SM", "SM0")
+ARMS = ("L", "LP", "LC", "LE", "S", "SP", "SM", "SM0", "TR", "TU", "T0")
+SERVICE_ARMS = ("S", "SP", "SM", "SM0", "TR", "TU", "T0")
 MEMORY_ARMS = ("SM", "SM0")
 PRUNE_ARMS = ("LP", "SP")
+COMPACT_READ_ARMS = ("LC",)
+TRUST_ARMS = ("TR", "TU", "T0")
+ARM_EFFORT = {"LE": "low"}  # every other arm uses LoopConfig.effort
 
 READ_LIMIT_LINES = 2000
+COMPACT_READ_LINES = 150  # LC: whole-file reads of longer files return an outline
+OUTLINE_HEAD_LINES = 20
 MAX_LINE_CHARS = 2000
 MAX_RESULT_CHARS = 60_000
 MAX_GREP_MATCHES = 100
@@ -105,6 +110,16 @@ SYSTEM_MEMORY = (
     "relevant behaviour lives, rules and decisions that constrain it, traps), each anchored "
     "to the lines that show it. Findings from earlier tasks may appear in request_context "
     "answers: they are unreviewed, so check anything you rely on heavily."
+)
+# Trust experiment: TU and T0 get the cautious line, TR the trusting one; nothing else differs.
+SYSTEM_FINDINGS_CAUTIOUS = (
+    " Findings from earlier tasks may appear in request_context answers: they are "
+    "unreviewed, so check anything you rely on heavily."
+)
+SYSTEM_FINDINGS_TRUSTED = (
+    " Findings from earlier tasks may appear in request_context answers. Those labelled "
+    "verified were checked by a reviewer against the lines they cite: rely on them, and open "
+    "a file only for details they don't cover."
 )
 
 TOOLS = [
@@ -181,11 +196,13 @@ class LocalTools:
     """Read-only tools confined to one project directory."""
 
     def __init__(self, project: Path, service: ContextService | None = None,
-                 service_hops: int = 2, agent_id: str = "loop") -> None:  # fmt: skip
+                 service_hops: int = 2, agent_id: str = "loop",
+                 compact_reads: bool = False) -> None:  # fmt: skip
         self.project = project.resolve()
         self.service = service
         self.service_hops = service_hops
         self.agent_id = agent_id
+        self.compact_reads = compact_reads
 
     def run(self, name: str, args: dict[str, Any]) -> tuple[str, bool]:
         """Returns (result text, is_error). Tool errors go back to the agent as text."""
@@ -226,6 +243,9 @@ class LocalTools:
         if not path.is_file():
             raise ValueError(f"no such file: {args['path']}")
         lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        whole_file = not args.get("offset") and not args.get("limit")
+        if self.compact_reads and whole_file and len(lines) > COMPACT_READ_LINES:
+            return _outline(self._rel(path), lines)
         start = max(1, int(args.get("offset") or 1))
         limit = max(1, int(args.get("limit") or READ_LIMIT_LINES))
         shown = lines[start - 1 : start - 1 + limit]
@@ -274,6 +294,33 @@ class LocalTools:
              "hops": self.service_hops, "agent_id": self.agent_id}
         )  # fmt: skip
         return self.service.request(request).render_markdown()
+
+
+# Lines that name a part of a file: Python definitions, Markdown headings, SQL statements.
+_OUTLINE = re.compile(
+    r"^\s*(?:async\s+def|def|class)\s+\w+"
+    r"|^#{1,6}\s+\S"
+    r"|^\s*(?:CREATE|ALTER|DROP)\s+\w+|^\s*INSERT\s+INTO\s",
+    re.IGNORECASE,
+)
+
+
+def _outline(rel: str, lines: list[str]) -> str:
+    """A long file's opening lines plus every line that starts a definition or section."""
+    head = [f"{n:>6}\t{line[:200]}" for n, line in enumerate(lines[:OUTLINE_HEAD_LINES], 1)]
+    marks = [
+        f"{n:>6}\t{line.rstrip()[:160]}"
+        for n, line in enumerate(lines, 1)
+        if n > OUTLINE_HEAD_LINES and _OUTLINE.match(line)
+    ]
+    return _cap(
+        f"{rel} has {len(lines)} lines, so only its outline is shown: the first "
+        f"{OUTLINE_HEAD_LINES} lines, then the line where each definition or section starts. "
+        "Call read_file with offset and limit to read the part you need.\n"
+        + "\n".join(head)
+        + "\n...\n"
+        + ("\n".join(marks) or "(no definitions or headings found)")
+    )
 
 
 def _cap(text: str) -> str:
@@ -490,11 +537,22 @@ def system_prompt(arm: str) -> str:
         text += " " + SYSTEM_B2
     if arm in MEMORY_ARMS:
         text += SYSTEM_MEMORY
+    if arm in TRUST_ARMS:
+        text += SYSTEM_FINDINGS_TRUSTED if arm == "TR" else SYSTEM_FINDINGS_CAUTIOUS
     return text
 
 
 def tools_for(arm: str) -> list[dict[str, Any]]:
     tools = list(TOOLS)
+    if arm in COMPACT_READ_ARMS:
+        read = dict(tools[0])
+        read["description"] = (
+            f"Read a text file. Returns numbered lines. A file longer than "
+            f"{COMPACT_READ_LINES} lines returns an outline (its opening lines and where each "
+            "definition or section starts) unless you give offset and limit; then read just "
+            "the part you need."
+        )
+        tools[0] = read
     if arm in SERVICE_ARMS:
         tools.append(SERVICE_TOOL)
     if arm in MEMORY_ARMS:
@@ -543,7 +601,7 @@ def run_loop(
             system=system,
             tools=tools_for(arm),
             messages=_with_cache_marks(messages),
-            output_config={"effort": config.effort},
+            output_config={"effort": ARM_EFFORT.get(arm, config.effort)},
         )
         cost = estimate_cost(config.model, turn.usage)
         run_cost += cost or 0.0
@@ -678,6 +736,31 @@ def plan_memory(followups: TaskSuite, followup_rubrics: dict[str, Any], parents:
     return [job for group in groups for job in group]
 
 
+def plan_trust(suite: TaskSuite, rubrics: dict[str, Any], reps: int,
+               task_ids: list[str] | None, seed: int) -> list[Job]:  # fmt: skip
+    """Follow-up tasks on a memory pre-seeded with reviewed findings: TR (findings marked
+    verified, told to rely on them), TU (the same findings unreviewed, told to check) and
+    T0 (empty memory, told to check). Run order is shuffled."""
+    states = {"TR": "trusted", "TU": "untrusted", "T0": "base"}
+    tasks = [t for t in suite.tasks if not task_ids or t.id in task_ids]
+    jobs = [
+        Job(t, arm, r, rubrics[t.id], state=state)
+        for r in range(reps) for t in tasks for arm, state in states.items()
+    ]  # fmt: skip
+    random.Random(seed).shuffle(jobs)
+    return jobs
+
+
+def trust_seeds(findings_file: Path) -> dict[str, list[dict[str, Any]]]:
+    """The confirmed findings of a reviewed-findings file, as seeds for both memories."""
+    data = json.loads(findings_file.read_text(encoding="utf-8"))
+    confirmed = [f for f in data["findings"] if f["review"] == "confirmed"]
+    return {
+        "trusted": confirmed,
+        "untrusted": [{**f, "review": "unreviewed"} for f in confirmed],
+    }
+
+
 def run_experiment(
     kind: str,
     jobs: list[Job],
@@ -689,8 +772,14 @@ def run_experiment(
     model: Model | None = None,
     cost_lookup: Callable[[str], float | None] | None = openrouter_generation_cost,
     key_status: Callable[[], dict[str, Any] | None] | None = openrouter_key_status,
+    seeds: dict[str, list[dict[str, Any]]] | None = None,
 ) -> Path:
-    """Run every job in order, writing each result as soon as it finishes."""
+    """Run every job in order, writing each result as soon as it finishes.
+
+    ``seeds`` maps a state name to findings to record (and review) in that state
+    before its first job: dicts with claim, path, line_start, line_end, evidence,
+    agent_id and review.
+    """
     model = model or openrouter_model()
     run_id = f"{datetime.now(UTC):%Y%m%dT%H%M%SZ}-loop-{kind}"
     run_dir = out_dir / run_id
@@ -726,7 +815,14 @@ def run_experiment(
             path = ws / f"state-{name}"
             if name != "base" and not path.exists():
                 shutil.copytree(base_state, path)
-            services[name] = ContextService.without_telemetry(project, path)
+            services[name] = svc = ContextService.without_telemetry(project, path)
+            for seed in (seeds or {}).get(name, []):
+                finding = svc.record_finding(
+                    seed["claim"], seed["path"], seed["line_start"], seed["line_end"],
+                    seed["evidence"], agent_id=seed.get("agent_id", "seed"),
+                )  # fmt: skip
+                if seed.get("review", "unreviewed") != "unreviewed":
+                    svc.review_finding(finding.finding_id, seed["review"])
         return services[name]
 
     records_path = run_dir / "runs.jsonl"
@@ -739,7 +835,8 @@ def run_experiment(
                 break
             service = service_for(job.state) if job.state else None
             findings_before = service.store.count_findings() if service else None
-            tools = LocalTools(project, service, config.service_hops, agent_id=job.arm)
+            tools = LocalTools(project, service, config.service_hops, agent_id=job.arm,
+                               compact_reads=job.arm in COMPACT_READ_ARMS)  # fmt: skip
             t0 = time.perf_counter()
             result = run_loop(model, config, job.arm, PROMPT.format(task=job.task.task),
                               tools, spent)  # fmt: skip
@@ -853,7 +950,8 @@ def summarise(records: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def _comparisons(arms: set[str]) -> list[tuple[str, str]]:
-    wanted = [("LP", "L"), ("SP", "S"), ("S", "L"), ("SM", "SM0")]
+    wanted = [("LP", "L"), ("LC", "L"), ("LE", "L"), ("SP", "S"), ("S", "L"), ("SM", "SM0"),
+              ("TR", "T0"), ("TU", "T0"), ("TR", "TU")]  # fmt: skip
     return [(a, b) for a, b in wanted if a in arms and b in arms]
 
 

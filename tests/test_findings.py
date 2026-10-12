@@ -140,3 +140,21 @@ def test_mcp_record_finding_only_when_enabled(service: ContextService) -> None:
     )
     assert bad[2]["result"]["isError"] is True
     assert "Not recorded" in bad[2]["result"]["content"][0]["text"]
+
+
+def test_review_verdicts_change_how_a_finding_is_served(service: ContextService) -> None:
+    _record(service)
+    finding = next(service.store.iter_findings())
+    task = {"task": "why are overdue fines capped at replacement cost"}
+
+    service.review_finding(finding.finding_id, "confirmed")
+    served = [i for i in service.request(task).items if i.kind is InfoKind.FINDING]
+    assert served[0].status is Status.VERIFIED and "confirmed" in served[0].via
+
+    service.review_finding(finding.finding_id, "rejected")
+    assert all(i.kind is not InfoKind.FINDING for i in service.request(task).items)
+
+    with pytest.raises(ValueError, match="verdict"):
+        service.review_finding(finding.finding_id, "maybe")
+    with pytest.raises(ValueError, match="no finding"):
+        service.review_finding("0" * 16, "confirmed")

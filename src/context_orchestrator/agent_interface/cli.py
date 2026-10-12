@@ -72,8 +72,17 @@ def _build_parser() -> argparse.ArgumentParser:
         help="also offer record_finding, so agents can save anchored findings (state dir only)",
     )
 
-    fnd = sub.add_parser("findings", help="list findings agents have recorded, for review")
+    fnd = sub.add_parser("findings", help="list findings agents have recorded, and review them")
     common(fnd)
+    fnd.add_argument(
+        "--confirm",
+        action="append",
+        default=[],
+        metavar="ID",
+        help="mark a finding as checked and correct (served as verified)",
+    )
+    fnd.add_argument("--reject", action="append", default=[], metavar="ID",
+                     help="mark a finding as wrong (no longer served)")  # fmt: skip
 
     ingest = sub.add_parser("ingest", help="load or refresh the project knowledge base")
     common(ingest)
@@ -144,13 +153,16 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     lp.add_argument("--model", default="anthropic/claude-haiku-5.5")
 
-    le = sub.add_parser("loop-eval", help="phase 4: pruning or memory experiment, own loop")
-    le.add_argument("experiment", choices=["prune", "memory"])
+    le = sub.add_parser("loop-eval", help="phase 4-5 experiments in the own agent loop")
+    le.add_argument("experiment", choices=["prune", "memory", "trust"],
+                    help="prune: plain arms side by side (L, LP, LC, LE, S, SP); memory: "
+                    "parent then follow-up; trust: follow-ups on seeded findings")  # fmt: skip
     le.add_argument("suite", type=Path, help="task suite (memory: the follow-up suite)")
     le.add_argument("--rubrics", type=Path, required=True)
     le.add_argument("--parents", type=Path, help="memory: suite holding the parent tasks")
     le.add_argument("--parent-rubrics", type=Path, help="memory: rubrics for the parents")
-    le.add_argument("--arms", default="L,LP", help="prune experiment arms (L, LP, S, SP)")
+    le.add_argument("--arms", default="L,LP", help="prune experiment arms (L, LP, LC, LE, S, SP)")
+    le.add_argument("--findings", type=Path, help="trust: reviewed findings to seed")
     le.add_argument("--tasks", help="comma-separated task ids (default: all)")
     le.add_argument("--reps", type=int, default=1)
     le.add_argument("--model", default="anthropic/claude-haiku-5.5")
@@ -255,10 +267,19 @@ def _loop_eval(args: argparse.Namespace) -> int:
     }
     if args.experiment == "prune":
         arms = [a.strip() for a in args.arms.split(",")]
-        unknown = [a for a in arms if a not in own_loop.ARMS or a in own_loop.MEMORY_ARMS]
+        plain = ("L", "LP", "LC", "LE", "S", "SP")
+        unknown = [a for a in arms if a not in plain]
         if unknown:
-            raise ValueError(f"prune arms are L, LP, S, SP; not {unknown}")
+            raise ValueError(f"prune arms are {', '.join(plain)}; not {unknown}")
         jobs = own_loop.plan_prune(suite, rubrics, arms, args.reps, task_ids, args.seed)
+    elif args.experiment == "trust":
+        if not args.findings:
+            raise ValueError("the trust experiment needs --findings")
+        seeds = own_loop.trust_seeds(args.findings)
+        jobs = own_loop.plan_trust(suite, rubrics, args.reps, task_ids, args.seed)
+        meta["findings"] = {"file": args.findings.as_posix(),
+                            "sha256": own_loop.sha256_file(args.findings),
+                            "seeded": len(seeds["trusted"])}  # fmt: skip
     else:
         if not (args.parents and args.parent_rubrics):
             raise ValueError("the memory experiment needs --parents and --parent-rubrics")
@@ -275,8 +296,9 @@ def _loop_eval(args: argparse.Namespace) -> int:
     if args.dry_run:
         return 0
     run_dir = own_loop.run_experiment(
-        args.experiment, jobs, suite.project, args.out, args.work_dir, config, meta
-    )
+        args.experiment, jobs, suite.project, args.out, args.work_dir, config, meta,
+        seeds=seeds if args.experiment == "trust" else None,
+    )  # fmt: skip
     print((run_dir / "summary.md").read_text(encoding="utf-8"))
     print(f"Raw results: {run_dir}")
     return 0
@@ -393,6 +415,9 @@ def main(argv: list[str] | None = None) -> int:
 
         if args.command == "findings":
             with ContextService.without_telemetry(args.project, args.state_dir) as svc:
+                for verdict, ids in (("confirmed", args.confirm), ("rejected", args.reject)):
+                    for finding_id in ids:
+                        svc.review_finding(finding_id, verdict)
                 findings = list(svc.store.iter_findings())
                 for f in findings:
                     print(f"## {f.finding_id}  {f.source.label()}  [{f.review}, {f.agent_id}, "

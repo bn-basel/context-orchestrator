@@ -295,3 +295,65 @@ def test_no_key_gives_a_clear_error(monkeypatch: pytest.MonkeyPatch, tmp_path: P
     assert own_loop.openrouter_generation_cost("gen-1") is None
     with pytest.raises(RuntimeError, match="OPENROUTER_API_KEY|Anthropic SDK"):
         own_loop.openrouter_model()
+
+
+def test_compact_reads_return_an_outline_for_long_files(tmp_path: Path) -> None:
+    project = tmp_path / "p"
+    project.mkdir()
+    body = ["# Title", "intro"] + [f"x = {i}" for i in range(200)]
+    body[120] = "def important():"
+    body[150] = "## Later section"
+    (project / "long.py").write_text("\n".join(body), "utf-8")
+    (project / "short.py").write_text("a = 1\nb = 2\n", "utf-8")
+    compact = LocalTools(project, compact_reads=True)
+    text, err = compact.run("read_file", {"path": "long.py"})
+    assert not err and "only its outline is shown" in text
+    assert "   121\tdef important():" in text and "   151\t## Later section" in text
+    assert "x = 100" not in text  # the body is not shown
+    assert "x = 100" in compact.run("read_file", {"path": "long.py", "offset": 100})[0]
+    assert compact.run("read_file", {"path": "short.py"})[0].startswith("     1\ta = 1")
+    assert "outline" not in LocalTools(project).run("read_file", {"path": "long.py"})[0]
+    lc_read = own_loop.tools_for("LC")[0]
+    assert "outline" in lc_read["description"] and "outline" not in TOOLS_READ_DESCRIPTION
+
+
+TOOLS_READ_DESCRIPTION = own_loop.TOOLS[0]["description"]
+
+
+def test_low_effort_arm_sends_low_effort() -> None:
+    sent = []
+
+    def model(**kwargs) -> Turn:
+        sent.append(kwargs["output_config"]["effort"])
+        return Turn("m", "end_turn", [{"type": "text", "text": "ok"}], dict(USAGE))
+
+    project = (HALLPASS.parent / "../corpora/hallpass").resolve()
+    run_loop(model, LoopConfig(), "LE", "t", LocalTools(project))
+    run_loop(model, LoopConfig(), "L", "t", LocalTools(project))
+    assert sent == ["low", "medium"]
+
+
+def test_trust_experiment_seeds_reviewed_findings(tmp_path: Path) -> None:
+    corpus = (HALLPASS.parent / "../corpora/hallpass").resolve()
+    followups = load_suite(REPO / "benchmarks/tasks/hallpass_followups.json")
+    rubrics = own_loop.rubrics_for(
+        REPO / "benchmarks/tasks/hallpass_followups.rubrics.json", followups
+    )
+    seeds = own_loop.trust_seeds(REPO / "benchmarks/tasks/hallpass_followups.findings.json")
+    assert len(seeds["trusted"]) == len(seeds["untrusted"]) == 16
+    jobs = own_loop.plan_trust(followups, rubrics, 1, ["F05"], seed=1)
+    assert sorted(j.arm for j in jobs) == ["T0", "TR", "TU"]
+    assert own_loop.system_prompt("TU") == own_loop.system_prompt("T0")
+    assert "rely on them" in own_loop.system_prompt("TR")
+    model = ScriptedModel(corpus, reads=0)
+    run_dir = own_loop.run_experiment(
+        "trust", jobs, corpus, tmp_path / "out", tmp_path / "work", LoopConfig(), {},
+        model=model, cost_lookup=None, key_status=None, seeds=seeds,
+    )  # fmt: skip
+    served = {}
+    for p in (run_dir / "raw").glob("*.json.gz"):
+        raw = json.loads(gzip.decompress(p.read_bytes()))
+        served[p.name.split("-")[1]] = raw["messages"][2]["content"][0]["content"]
+    assert "_[finding, verified" in served["TR"]
+    assert "_[finding, unverified" in served["TU"]
+    assert "Finding:" not in served["T0"]
