@@ -357,3 +357,35 @@ def test_trust_experiment_seeds_reviewed_findings(tmp_path: Path) -> None:
     assert "_[finding, verified" in served["TR"]
     assert "_[finding, unverified" in served["TU"]
     assert "Finding:" not in served["T0"]
+
+
+def test_combo_arm_combines_service_trust_and_low_effort(tmp_path: Path) -> None:
+    corpus = (HALLPASS.parent / "../corpora/hallpass").resolve()
+    followups = load_suite(REPO / "benchmarks/tasks/hallpass_followups.json")
+    rubrics = own_loop.rubrics_for(
+        REPO / "benchmarks/tasks/hallpass_followups.rubrics.json", followups
+    )
+    jobs = own_loop.plan_combo(followups, rubrics, 1, ["F05"], seed=2)
+    assert sorted(j.arm for j in jobs) == ["L", "S", "X"]
+    assert own_loop.system_prompt("X") == own_loop.system_prompt("TR")
+    assert "request_context" not in [t["name"] for t in own_loop.tools_for("L")]
+    sent: dict[str, list[str]] = {}
+
+    class Recorder(ScriptedModel):
+        def __call__(self, **kwargs) -> Turn:
+            arm = next(
+                a
+                for a in ("X", "S", "L")
+                if own_loop.system_prompt(a) == kwargs["system"][0]["text"]
+            )
+            sent.setdefault(arm, []).append(kwargs["output_config"]["effort"])
+            return super().__call__(**kwargs)
+
+    seeds = own_loop.trust_seeds(REPO / "benchmarks/tasks/hallpass_followups.findings.json")
+    run_dir = own_loop.run_experiment(
+        "combo", jobs, corpus, tmp_path / "out", tmp_path / "work", LoopConfig(), {},
+        model=Recorder(corpus, reads=0), cost_lookup=None, key_status=None, seeds=seeds,
+    )  # fmt: skip
+    assert set(sent["X"]) == {"low"} and set(sent["S"]) == {"medium"}
+    raw = json.loads(gzip.decompress((run_dir / "raw" / "F05-X-task-0.json.gz").read_bytes()))
+    assert "_[finding, verified" in raw["messages"][2]["content"][0]["content"]

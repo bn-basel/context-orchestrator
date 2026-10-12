@@ -81,13 +81,15 @@ EFFORT = "medium"  # Claude Haiku 5.5's default, stated explicitly
 THINKING_TYPES = ("thinking", "redacted_thinking")
 PROVIDER = {"only": ["anthropic"], "allow_fallbacks": False}
 
-ARMS = ("L", "LP", "LC", "LE", "S", "SP", "SM", "SM0", "TR", "TU", "T0")
-SERVICE_ARMS = ("S", "SP", "SM", "SM0", "TR", "TU", "T0")
+ARMS = ("L", "LP", "LC", "LE", "S", "SP", "SM", "SM0", "TR", "TU", "T0", "X")
+SERVICE_ARMS = ("S", "SP", "SM", "SM0", "TR", "TU", "T0", "X")
 MEMORY_ARMS = ("SM", "SM0")
 PRUNE_ARMS = ("LP", "SP")
 COMPACT_READ_ARMS = ("LC",)
-TRUST_ARMS = ("TR", "TU", "T0")
-ARM_EFFORT = {"LE": "low"}  # every other arm uses LoopConfig.effort
+TRUST_ARMS = ("TR", "TU", "T0", "X")
+TRUSTING_ARMS = ("TR", "X")  # told to rely on verified findings
+# X combines the three levers that worked: service first, trusted reviewed memory, effort low.
+ARM_EFFORT = {"LE": "low", "X": "low"}  # every other arm uses LoopConfig.effort
 
 READ_LIMIT_LINES = 2000
 COMPACT_READ_LINES = 150  # LC: whole-file reads of longer files return an outline
@@ -538,7 +540,7 @@ def system_prompt(arm: str) -> str:
     if arm in MEMORY_ARMS:
         text += SYSTEM_MEMORY
     if arm in TRUST_ARMS:
-        text += SYSTEM_FINDINGS_TRUSTED if arm == "TR" else SYSTEM_FINDINGS_CAUTIOUS
+        text += SYSTEM_FINDINGS_TRUSTED if arm in TRUSTING_ARMS else SYSTEM_FINDINGS_CAUTIOUS
     return text
 
 
@@ -751,6 +753,21 @@ def plan_trust(suite: TaskSuite, rubrics: dict[str, Any], reps: int,
     return jobs
 
 
+def plan_combo(suite: TaskSuite, rubrics: dict[str, Any], reps: int,
+               task_ids: list[str] | None, seed: int) -> list[Job]:  # fmt: skip
+    """Follow-up tasks with a plain agent (L), the context service used first (S), and all
+    three working levers together (X: service first, trusted reviewed memory, effort low).
+    Run order is shuffled."""
+    states = {"L": None, "S": "base", "X": "trusted"}
+    tasks = [t for t in suite.tasks if not task_ids or t.id in task_ids]
+    jobs = [
+        Job(t, arm, r, rubrics[t.id], state=state)
+        for r in range(reps) for t in tasks for arm, state in states.items()
+    ]  # fmt: skip
+    random.Random(seed).shuffle(jobs)
+    return jobs
+
+
 def trust_seeds(findings_file: Path) -> dict[str, list[dict[str, Any]]]:
     """The confirmed findings of a reviewed-findings file, as seeds for both memories."""
     data = json.loads(findings_file.read_text(encoding="utf-8"))
@@ -951,7 +968,7 @@ def summarise(records: list[dict[str, Any]]) -> dict[str, Any]:
 
 def _comparisons(arms: set[str]) -> list[tuple[str, str]]:
     wanted = [("LP", "L"), ("LC", "L"), ("LE", "L"), ("SP", "S"), ("S", "L"), ("SM", "SM0"),
-              ("TR", "T0"), ("TU", "T0"), ("TR", "TU")]  # fmt: skip
+              ("TR", "T0"), ("TU", "T0"), ("TR", "TU"), ("X", "L"), ("X", "S")]  # fmt: skip
     return [(a, b) for a, b in wanted if a in arms and b in arms]
 
 

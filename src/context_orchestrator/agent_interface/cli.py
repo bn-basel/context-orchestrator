@@ -154,9 +154,10 @@ def _build_parser() -> argparse.ArgumentParser:
     lp.add_argument("--model", default="anthropic/claude-haiku-5.5")
 
     le = sub.add_parser("loop-eval", help="phase 4-5 experiments in the own agent loop")
-    le.add_argument("experiment", choices=["prune", "memory", "trust"],
+    le.add_argument("experiment", choices=["prune", "memory", "trust", "combo"],
                     help="prune: plain arms side by side (L, LP, LC, LE, S, SP); memory: "
-                    "parent then follow-up; trust: follow-ups on seeded findings")  # fmt: skip
+                    "parent then follow-up; trust: follow-ups on seeded findings; combo: L, S "
+                    "and X (all working levers) on the follow-ups")  # fmt: skip
     le.add_argument("suite", type=Path, help="task suite (memory: the follow-up suite)")
     le.add_argument("--rubrics", type=Path, required=True)
     le.add_argument("--parents", type=Path, help="memory: suite holding the parent tasks")
@@ -272,11 +273,12 @@ def _loop_eval(args: argparse.Namespace) -> int:
         if unknown:
             raise ValueError(f"prune arms are {', '.join(plain)}; not {unknown}")
         jobs = own_loop.plan_prune(suite, rubrics, arms, args.reps, task_ids, args.seed)
-    elif args.experiment == "trust":
+    elif args.experiment in ("trust", "combo"):
         if not args.findings:
-            raise ValueError("the trust experiment needs --findings")
+            raise ValueError(f"the {args.experiment} experiment needs --findings")
         seeds = own_loop.trust_seeds(args.findings)
-        jobs = own_loop.plan_trust(suite, rubrics, args.reps, task_ids, args.seed)
+        plan = own_loop.plan_trust if args.experiment == "trust" else own_loop.plan_combo
+        jobs = plan(suite, rubrics, args.reps, task_ids, args.seed)
         meta["findings"] = {"file": args.findings.as_posix(),
                             "sha256": own_loop.sha256_file(args.findings),
                             "seeded": len(seeds["trusted"])}  # fmt: skip
@@ -297,7 +299,7 @@ def _loop_eval(args: argparse.Namespace) -> int:
         return 0
     run_dir = own_loop.run_experiment(
         args.experiment, jobs, suite.project, args.out, args.work_dir, config, meta,
-        seeds=seeds if args.experiment == "trust" else None,
+        seeds=seeds if args.experiment in ("trust", "combo") else None,
     )  # fmt: skip
     print((run_dir / "summary.md").read_text(encoding="utf-8"))
     print(f"Raw results: {run_dir}")

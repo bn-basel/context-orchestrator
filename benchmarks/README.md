@@ -818,3 +818,33 @@ That is within the tolerance and could be noise, but it points the expected
 way: relying on a summary instead of the source can drop a detail. The
 findings were reviewed by Claude, not a person; with human review the
 trade-off may differ.
+
+## Phase 6 plan: the working levers combined (committed before any run)
+
+Phase 5 measured each lever alone. This tests the recipe: a plain agent
+against one that uses all three levers that worked, on the 5 follow-up tasks
+(where memory applies) × 3 repetitions × 3 arms = 45 runs, shuffled, Claude
+Haiku 5.5 in our own loop:
+
+- `L`: plain agent, file tools only, effort `medium` (baseline).
+- `S`: the context service, told to use it first, effort `medium`. Its own
+  effect has not been measured in this loop yet (the 0.79× came from Claude
+  Code with Haiku 4.5).
+- `X`: all three: service first + the 16 reviewed findings served as
+  verified with the "rely on them" instruction (as TR) + effort `low`.
+
+**Prediction.** If the savings were independent they would multiply:
+0.71 (low effort) × 0.79 (service first) × 0.82 (trusted memory) ≈ **×0.46**.
+
+**Decision rule** (as in phase 5): X vs L counts as working if the
+measured-cost interval lies entirely below ×1.0 and the mean score drops by
+no more than 0.05. S vs L and X vs S are reported to show what each step
+adds. No further batches unless the rule says "promising" (point ≤ ×0.90,
+interval crossing ×1.0).
+
+```bash
+uv run ctxo loop-eval combo benchmarks/tasks/hallpass_followups.json --rubrics benchmarks/tasks/hallpass_followups.rubrics.json --findings benchmarks/tasks/hallpass_followups.findings.json --reps 3
+uv run python benchmarks/memory_analysis.py --arm X --base L benchmarks/results/<run>
+```
+
+Expected cost about $0.20.
