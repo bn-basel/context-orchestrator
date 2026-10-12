@@ -25,7 +25,7 @@ Paste into a new session opened in the repository folder:
 | 4 Pruning + memory | 4a done: pruning gave no saving on Haiku 5.5 (cost ×1.17, 10 runs, $0.07); 4b memory: findings accurate and served, but no saving (cost ×0.98 pooled over 20 pairs; agents re-open cited files) |
 | 5 Levers by cost share | done: low effort ×0.71 (works); reviewed + trusted memory ×0.82 vs no memory (works, score −0.035); outline-first reads ×0.91 (inconclusive); 120 runs, $0.47 |
 | 6–7 Combined | done: service first vs plain ×0.64 cost, ×0.51 tokens, same quality (the README headline); + low effort ×0.38 but score −0.051; + trusted memory adds nothing; all three ×0.28 but score −0.15; 105 runs, $0.52 |
-| Publication | **public since 2026-10-11** at github.com/bn-basel/context-orchestrator (fresh repository with the cleaned history); the pre-rewrite repository is kept private as bn-basel/context-orchestrator-private-archive (still holds the old commits with the personal email: never make it public) |
+| Publication | **public since 2026-10-11** at github.com/bn-basel/context-orchestrator (fresh repository with the cleaned history); the pre-rewrite repository is kept private as bn-basel/context-orchestrator-private-archive (still holds the old commits with the personal email: never make it public). Charts: `benchmarks/charts/results_chart.py` writes docs/img/results-*.svg (simple, README) and results-detail-*.svg (every result, docs/findings.md) |
 
 The full story with numbers: [docs/findings.md](docs/findings.md); every run
 with caveats: [benchmarks/README.md](benchmarks/README.md).
